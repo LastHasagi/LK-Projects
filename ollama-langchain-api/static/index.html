@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama + LangChain API Demo</title>
+    <link rel="stylesheet" href="/static/styles.css?v=1.0.3">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <h1>Ollama + LangChain API</h1>
+                </div>
+                <div class="status-indicator">
+                    <span id="api-status" class="status offline">
+                        <i class="fas fa-circle"></i>
+                        API Offline
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <nav class="nav-menu">
+                    <div class="nav-section">
+                        <h3>Chat Básico</h3>
+                        <button class="nav-btn active" data-tab="simple-chat">
+                            <i class="fas fa-comments"></i>
+                            Chat Simples
+                        </button>
+                        <button class="nav-btn" data-tab="context-chat">
+                            <i class="fas fa-layer-group"></i>
+                            Chat com Contexto
+                        </button>
+                        <button class="nav-btn" data-tab="memory-chat">
+                            <i class="fas fa-brain"></i>
+                            Chat com Memória
+                        </button>
+                    </div>
+                    
+                    <div class="nav-section">
+                        <h3>LangChain Chains</h3>
+                        <button class="nav-btn" data-tab="qa-chain">
+                            <i class="fas fa-question-circle"></i>
+                            Q&A Chain
+                        </button>
+                        <button class="nav-btn" data-tab="summarize-chain">
+                            <i class="fas fa-compress-alt"></i>
+                            Summarize Chain
+                        </button>
+                        <button class="nav-btn" data-tab="translate-chain">
+                            <i class="fas fa-language"></i>
+                            Translate Chain
+                        </button>
+                    </div>
+                    
+                    <div class="nav-section">
+                        <h3>Utilitários</h3>
+                        <button class="nav-btn" data-tab="health-check">
+                            <i class="fas fa-heartbeat"></i>
+                            Health Check
+                        </button>
+                        <button class="nav-btn" data-tab="models">
+                            <i class="fas fa-list"></i>
+                            Listar Modelos
+                        </button>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Simple Chat Tab -->
+                <div class="tab-content active" id="simple-chat">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-comments"></i> Chat Simples</h2>
+                        <p>Envie uma mensagem simples para o modelo de IA</p>
+                    </div>
+                    
+                    <div class="chat-container">
+                        <div class="chat-messages" id="simple-chat-messages">
+                            <div class="message system">
+                                <i class="fas fa-robot"></i>
+                                <div class="message-content">
+                                    <p>Olá! Sou um assistente de IA. Como posso ajudar você hoje?</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-input-container">
+                            <div class="input-group">
+                                <input type="text" id="simple-chat-input" placeholder="Digite sua mensagem..." class="chat-input">
+                                <button id="simple-chat-send" class="send-btn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            <div class="chat-controls">
+                                <div class="temperature-control">
+                                    <label for="simple-temperature">Temperatura:</label>
+                                    <input type="range" id="simple-temperature" min="0" max="2" step="0.1" value="0.7" class="temp-slider">
+                                    <span id="simple-temp-value">0.7</span>
+                                </div>
+                                <div class="language-control">
+                                    <label for="simple-language">Idioma:</label>
+                                    <select id="simple-language" class="language-select">
+                                        <option value="pt-BR">Português (BR)</option>
+                                        <option value="en-US">English (US)</option>
+                                        <option value="es-ES">Español (ES)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Context Chat Tab -->
+                <div class="tab-content" id="context-chat">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-layer-group"></i> Chat com Contexto</h2>
+                        <p>Adicione contexto adicional para melhorar as respostas</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="context-input">Contexto:</label>
+                            <textarea id="context-input" placeholder="Digite o contexto adicional..." rows="4"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="context-message">Mensagem:</label>
+                            <textarea id="context-message" placeholder="Digite sua mensagem..." rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="context-temperature">Temperatura:</label>
+                            <input type="range" id="context-temperature" min="0" max="2" step="0.1" value="0.7" class="temp-slider">
+                            <span id="context-temp-value">0.7</span>
+                        </div>
+                        
+                        <button id="context-send" class="primary-btn">
+                            <i class="fas fa-paper-plane"></i>
+                            Enviar
+                        </button>
+                        
+                        <div class="response-container" id="context-response"></div>
+                    </div>
+                </div>
+
+                <!-- Memory Chat Tab -->
+                <div class="tab-content" id="memory-chat">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-brain"></i> Chat com Memória</h2>
+                        <p>Mantenha conversas com memória entre sessões</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="session-id">ID da Sessão:</label>
+                            <input type="text" id="session-id" placeholder="Digite um ID único para a sessão..." value="session-1">
+                        </div>
+                        
+                        <div class="chat-container">
+                            <div class="chat-messages" id="memory-chat-messages">
+                                <div class="message system">
+                                    <i class="fas fa-robot"></i>
+                                    <div class="message-content">
+                                        <p>Esta conversa será mantida na memória. Use o mesmo ID de sessão para continuar!</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="chat-input-container">
+                                <div class="input-group">
+                                    <input type="text" id="memory-chat-input" placeholder="Digite sua mensagem..." class="chat-input">
+                                    <button id="memory-chat-send" class="send-btn">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <div class="chat-controls">
+                                    <div class="temperature-control">
+                                        <label for="memory-temperature">Temperatura:</label>
+                                        <input type="range" id="memory-temperature" min="0" max="2" step="0.1" value="0.7" class="temp-slider">
+                                        <span id="memory-temp-value">0.7</span>
+                                    </div>
+                                    <div class="language-control">
+                                        <label for="memory-language">Idioma:</label>
+                                        <select id="memory-language" class="language-select">
+                                            <option value="pt-BR">Português (BR)</option>
+                                            <option value="en-US">English (US)</option>
+                                            <option value="es-ES">Español (ES)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QA Chain Tab -->
+                <div class="tab-content" id="qa-chain">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-question-circle"></i> Q&A Chain</h2>
+                        <p>Faça perguntas e obtenha respostas estruturadas</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="qa-question">Pergunta:</label>
+                            <textarea id="qa-question" placeholder="Digite sua pergunta..." rows="3"></textarea>
+                        </div>
+                        
+                        <button id="qa-send" class="primary-btn">
+                            <i class="fas fa-search"></i>
+                            Buscar Resposta
+                        </button>
+                        
+                        <div class="response-container" id="qa-response"></div>
+                    </div>
+                </div>
+
+                <!-- Summarize Chain Tab -->
+                <div class="tab-content" id="summarize-chain">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-compress-alt"></i> Summarize Chain</h2>
+                        <p>Resuma textos longos de forma eficiente</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="summarize-text">Texto para resumir:</label>
+                            <textarea id="summarize-text" placeholder="Cole aqui o texto que deseja resumir..." rows="8"></textarea>
+                        </div>
+                        
+                        <button id="summarize-send" class="primary-btn">
+                            <i class="fas fa-compress-alt"></i>
+                            Resumir
+                        </button>
+                        
+                        <div class="response-container" id="summarize-response"></div>
+                    </div>
+                </div>
+
+                <!-- Translate Chain Tab -->
+                <div class="tab-content" id="translate-chain">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-language"></i> Translate Chain</h2>
+                        <p>Traduza textos entre diferentes idiomas</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="translate-text">Texto para traduzir:</label>
+                            <textarea id="translate-text" placeholder="Digite o texto que deseja traduzir..." rows="4"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="target-language">Idioma de destino:</label>
+                            <select id="target-language" class="select-input">
+                                <option value="English">Inglês</option>
+                                <option value="Spanish">Espanhol</option>
+                                <option value="French">Francês</option>
+                                <option value="German">Alemão</option>
+                                <option value="Italian">Italiano</option>
+                                <option value="Portuguese">Português</option>
+                                <option value="Japanese">Japonês</option>
+                                <option value="Chinese">Chinês</option>
+                            </select>
+                        </div>
+                        
+                        <button id="translate-send" class="primary-btn">
+                            <i class="fas fa-language"></i>
+                            Traduzir
+                        </button>
+                        
+                        <div class="response-container" id="translate-response"></div>
+                    </div>
+                </div>
+
+                <!-- Health Check Tab -->
+                <div class="tab-content" id="health-check">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-heartbeat"></i> Health Check</h2>
+                        <p>Verifique o status da API e do Ollama</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <button id="health-check-btn" class="primary-btn">
+                            <i class="fas fa-heartbeat"></i>
+                            Verificar Status
+                        </button>
+                        
+                        <div class="response-container" id="health-response"></div>
+                    </div>
+                </div>
+
+                <!-- Models Tab -->
+                <div class="tab-content" id="models">
+                    <div class="tab-header">
+                        <h2><i class="fas fa-list"></i> Modelos Disponíveis</h2>
+                        <p>Liste todos os modelos disponíveis no Ollama</p>
+                    </div>
+                    
+                    <div class="form-container">
+                        <button id="models-btn" class="primary-btn">
+                            <i class="fas fa-list"></i>
+                            Listar Modelos
+                        </button>
+                        
+                        <div class="response-container" id="models-response"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processando...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/script.js?v=1.0.1"></script>
+</body>
+</html>
