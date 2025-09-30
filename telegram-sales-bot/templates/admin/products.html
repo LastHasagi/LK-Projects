@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos - Painel Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Produtos</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="/admin/products/new" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Novo Produto
+        </a>
+    </div>
+</div>
+
+<!-- Products Grid -->
+<div class="row">
+    {% for product in products %}
+    <div class="col-md-4 mb-4">
+        <div class="card product-card h-100">
+            {% if product.main_image %}
+            <img src="{{ product.main_image.image_url }}" class="card-img-top product-image" alt="{{ product.name }}">
+            {% else %}
+            <div class="card-img-top product-image bg-light d-flex align-items-center justify-content-center">
+                <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+            </div>
+            {% endif %}
+            <div class="card-body">
+                <h5 class="card-title">{{ product.name }}</h5>
+                <p class="card-text">{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="h5 mb-0">R$ {{ "%.2f"|format(product.price) }}</span>
+                    {% if product.is_active %}
+                    <span class="badge bg-success">Ativo</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Inativo</span>
+                    {% endif %}
+                </div>
+                <div class="mt-2">
+                    {% if product.stock_quantity == -1 %}
+                    <small class="text-muted">Estoque ilimitado</small>
+                    {% else %}
+                    <small class="text-muted">Estoque: {{ product.stock_quantity }}</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="btn-group w-100" role="group">
+                    <a href="/admin/products/{{ product.id }}/edit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-pencil"></i> Editar
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct({{ product.id }})">
+                        <i class="bi bi-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if not products %}
+<div class="alert alert-info" role="alert">
+    <i class="bi bi-info-circle"></i> Nenhum produto cadastrado ainda. 
+    <a href="/admin/products/new">Clique aqui para adicionar o primeiro produto.</a>
+</div>
+{% endif %}
+
+<script>
+async function deleteProduct(productId) {
+    if (!confirm('Tem certeza que deseja excluir este produto?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/products/${productId}`, {
+            method: 'DELETE',
+            headers: window.adminUtils.getAuthHeaders()
+        });
+        
+        if (response.ok) {
+            window.adminUtils.showToast('Produto excluído com sucesso!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            window.adminUtils.showToast('Erro ao excluir produto', 'danger');
+        }
+    } catch (error) {
+        window.adminUtils.showToast('Erro ao excluir produto', 'danger');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-people"></i> Gestão de Usuários</h1>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="filterUsers('all')">Todos</button>
+                    <button type="button" class="btn btn-outline-success" onclick="filterUsers('active')">Ativos</button>
+                    <button type="button" class="btn btn-outline-danger" onclick="filterUsers('inactive')">Inativos</button>
+                    <button type="button" class="btn btn-outline-warning" onclick="filterUsers('admin')">Administradores</button>
+                </div>
+            </div>
+
+            <!-- Estatísticas Rápidas -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="total-users">0</h4>
+                                    <p class="mb-0">Total de Usuários</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-people fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="active-users">0</h4>
+                                    <p class="mb-0">Usuários Ativos</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-person-check fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="admin-users">0</h4>
+                                    <p class="mb-0">Administradores</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-shield-check fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="new-users-today">0</h4>
+                                    <p class="mb-0">Novos Hoje</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-person-plus fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Usuários -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="mb-0">Lista de Usuários</h5>
+                        </div>
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Buscar usuário..." id="search-users">
+                                <button class="btn btn-outline-secondary" type="button">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nome</th>
+                                    <th>Username</th>
+                                    <th>Telegram ID</th>
+                                    <th>Status</th>
+                                    <th>Cadastro</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando usuários...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paginação -->
+            <nav aria-label="Navegação de usuários" class="mt-3">
+                <ul class="pagination justify-content-center" id="users-pagination">
+                    <!-- Paginação será inserida aqui via JavaScript -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes do Usuário -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Usuário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="user-details">
+                <!-- Conteúdo será inserido via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-warning" onclick="toggleUserStatus()">Alterar Status</button>
+                <button type="button" class="btn btn-danger" onclick="deleteUser()">Excluir Usuário</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.status-active {
+    background-color: #198754;
+    color: #fff;
+}
+
+.status-inactive {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+.user-row {
+    cursor: pointer;
+}
+
+.user-row:hover {
+    background-color: #f8f9fa;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #007bff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+</style>
+
+<script>
+let currentPage = 1;
+let currentFilter = 'all';
+let usersData = [];
+let currentUserId = null;
+
+// Carregar usuários ao inicializar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+    loadUserStats();
+});
+
+async function loadUsers(page = 1) {
+    try {
+        const response = await fetch(`/api/users?page=${page}&limit=10`);
+        const data = await response.json();
+        
+        usersData = data.users || [];
+        currentPage = page;
+        
+        renderUsersTable();
+        renderPagination(data.total || 0, data.page || 1, data.pages || 1);
+    } catch (error) {
+        console.error('Erro ao carregar usuários:', error);
+        showAlert('Erro ao carregar usuários', 'danger');
+    }
+}
+
+async function loadUserStats() {
+    try {
+        const response = await fetch('/api/users/stats');
+        const stats = await response.json();
+        
+        document.getElementById('total-users').textContent = stats.total_users || 0;
+        document.getElementById('active-users').textContent = stats.active_users || 0;
+        document.getElementById('admin-users').textContent = stats.admin_users || 0;
+        document.getElementById('new-users-today').textContent = stats.new_users_today || 0;
+    } catch (error) {
+        console.error('Erro ao carregar estatísticas:', error);
+    }
+}
+
+function renderUsersTable() {
+    const tbody = document.getElementById('users-table-body');
+    
+    if (!usersData.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4">
+                    <i class="bi bi-people fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Nenhum usuário encontrado</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = usersData.map(user => `
+        <tr class="user-row" onclick="showUserDetails(${user.id})">
+            <td>${user.id}</td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <div class="user-avatar me-2">
+                        ${getInitials(user.first_name, user.last_name)}
+                    </div>
+                    <div>
+                        <strong>${user.first_name || 'N/A'} ${user.last_name || ''}</strong><br>
+                        <small class="text-muted">${user.email || 'Sem email'}</small>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="badge bg-secondary">@${user.username || 'N/A'}</span>
+            </td>
+            <td>
+                <code>${user.telegram_id}</code>
+            </td>
+            <td>
+                <span class="badge status-badge ${user.is_active ? 'status-active' : 'status-inactive'}">
+                    ${user.is_active ? 'Ativo' : 'Inativo'}
+                </span>
+                ${user.is_admin ? '<span class="badge bg-warning ms-1">Admin</span>' : ''}
+            </td>
+            <td>
+                <div>
+                    ${formatDate(user.created_at)}<br>
+                    <small class="text-muted">${formatTime(user.created_at)}</small>
+                </div>
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); showUserDetails(${user.id})" title="Ver detalhes">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation(); toggleUserStatus(${user.id})" title="Alterar status">
+                        <i class="bi bi-toggle-${user.is_active ? 'on' : 'off'}"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getInitials(firstName, lastName) {
+    const first = firstName ? firstName.charAt(0).toUpperCase() : 'U';
+    const last = lastName ? lastName.charAt(0).toUpperCase() : '';
+    return first + last;
+}
+
+function showUserDetails(userId) {
+    const user = usersData.find(u => u.id === userId);
+    if (!user) return;
+    
+    currentUserId = userId;
+    
+    const modalBody = document.getElementById('user-details');
+    modalBody.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Informações Pessoais</h6>
+                <p><strong>Nome:</strong> ${user.first_name || 'N/A'} ${user.last_name || ''}</p>
+                <p><strong>Username:</strong> @${user.username || 'N/A'}</p>
+                <p><strong>Telegram ID:</strong> <code>${user.telegram_id}</code></p>
+                <p><strong>Email:</strong> ${user.email || 'Não informado'}</p>
+                <p><strong>Telefone:</strong> ${user.phone_number || 'Não informado'}</p>
+                <p><strong>Idioma:</strong> ${user.language_code || 'pt'}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>Informações da Conta</h6>
+                <p><strong>Status:</strong> 
+                    <span class="badge ${user.is_active ? 'bg-success' : 'bg-secondary'}">
+                        ${user.is_active ? 'Ativo' : 'Inativo'}
+                    </span>
+                </p>
+                <p><strong>Administrador:</strong> 
+                    <span class="badge ${user.is_admin ? 'bg-warning' : 'bg-info'}">
+                        ${user.is_admin ? 'Sim' : 'Não'}
+                    </span>
+                </p>
+                <p><strong>Data de Cadastro:</strong> ${formatDateTime(user.created_at)}</p>
+                <p><strong>Última Atualização:</strong> ${formatDateTime(user.updated_at)}</p>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-12">
+                <h6>Estatísticas</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">0</h5>
+                                <p class="card-text">Pedidos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">R$ 0,00</h5>
+                                <p class="card-text">Total Gasto</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">0</h5>
+                                <p class="card-text">Acessos</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('userModal'));
+    modal.show();
+}
+
+async function toggleUserStatus(userId = currentUserId) {
+    if (!userId) return;
+    
+    try {
+        const user = usersData.find(u => u.id === userId);
+        const newStatus = !user.is_active;
+        
+        const response = await fetch(`/api/users/${userId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                is_active: newStatus
+            })
+        });
+        
+        if (response.ok) {
+            showAlert(`Usuário ${newStatus ? 'ativado' : 'desativado'} com sucesso!`, 'success');
+            loadUsers(currentPage);
+            loadUserStats();
+            
+            if (currentUserId === userId) {
+                bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            }
+        } else {
+            throw new Error('Erro ao atualizar status do usuário');
+        }
+    } catch (error) {
+        console.error('Erro ao alterar status:', error);
+        showAlert('Erro ao alterar status do usuário', 'danger');
+    }
+}
+
+async function deleteUser() {
+    if (!currentUserId) return;
+    
+    if (!confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/${currentUserId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showAlert('Usuário excluído com sucesso!', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
+            loadUsers(currentPage);
+            loadUserStats();
+        } else {
+            throw new Error('Erro ao excluir usuário');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir usuário:', error);
+        showAlert('Erro ao excluir usuário', 'danger');
+    }
+}
+
+function filterUsers(filter) {
+    currentFilter = filter;
+    // Aqui você implementaria a lógica de filtro
+    loadUsers(1);
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+}
+
+function formatTime(dateString) {
+    return new Date(dateString).toLocaleTimeString('pt-BR');
+}
+
+function formatDateTime(dateString) {
+    return new Date(dateString).toLocaleString('pt-BR');
+}
+
+function renderPagination(total, page, pages) {
+    const pagination = document.getElementById('users-pagination');
+    
+    if (pages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // Botão anterior
+    paginationHTML += `
+        <li class="page-item ${page === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadUsers(${page - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) {
+        paginationHTML += `
+            <li class="page-item ${i === page ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadUsers(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Botão próximo
+    paginationHTML += `
+        <li class="page-item ${page === pages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadUsers(${page + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+function showAlert(message, type = 'info') {
+    // Implementar sistema de alertas
+    console.log(`${type.toUpperCase()}: ${message}`);
+}
+</script>
+{% endblock %}

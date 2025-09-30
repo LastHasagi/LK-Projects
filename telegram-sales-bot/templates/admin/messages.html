@@ -1,0 +1,713 @@
+{% extends "base.html" %}
+
+{% block title %}Mensagens - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-chat-text"></i> Gestão de Mensagens</h1>
+                <button class="btn btn-primary" onclick="showNewMessageModal()">
+                    <i class="bi bi-plus-circle"></i> Nova Mensagem
+                </button>
+            </div>
+
+            <!-- Estatísticas Rápidas -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="total-messages">0</h4>
+                                    <p class="mb-0">Total de Mensagens</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-chat-text fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="active-messages">0</h4>
+                                    <p class="mb-0">Mensagens Ativas</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-check-circle fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="welcome-messages">0</h4>
+                                    <p class="mb-0">Boas-vindas</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-hand-thumbs-up fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="reminder-messages">0</h4>
+                                    <p class="mb-0">Lembretes</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-bell fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-3">
+                            <label for="type-filter" class="form-label">Tipo de Mensagem</label>
+                            <select class="form-select" id="type-filter" onchange="filterMessages()">
+                                <option value="">Todos os tipos</option>
+                                <option value="welcome">Boas-vindas</option>
+                                <option value="payment_reminder">Lembrete de Pagamento</option>
+                                <option value="payment_confirmation">Confirmação de Pagamento</option>
+                                <option value="access_granted">Acesso Concedido</option>
+                                <option value="access_denied">Acesso Negado</option>
+                                <option value="general">Geral</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="language-filter" class="form-label">Idioma</label>
+                            <select class="form-select" id="language-filter" onchange="filterMessages()">
+                                <option value="">Todos os idiomas</option>
+                                <option value="pt">Português</option>
+                                <option value="en">Inglês</option>
+                                <option value="es">Espanhol</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status-filter" class="form-label">Status</label>
+                            <select class="form-select" id="status-filter" onchange="filterMessages()">
+                                <option value="">Todos</option>
+                                <option value="active">Ativas</option>
+                                <option value="inactive">Inativas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                    <i class="bi bi-x-circle"></i> Limpar Filtros
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Mensagens -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="mb-0">Templates de Mensagem</h5>
+                        </div>
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Buscar mensagem..." id="search-messages">
+                                <button class="btn btn-outline-secondary" type="button">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Tipo</th>
+                                    <th>Assunto</th>
+                                    <th>Idioma</th>
+                                    <th>Status</th>
+                                    <th>Variáveis</th>
+                                    <th>Criada</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="messages-table-body">
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando mensagens...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paginação -->
+            <nav aria-label="Navegação de mensagens" class="mt-3">
+                <ul class="pagination justify-content-center" id="messages-pagination">
+                    <!-- Paginação será inserida aqui via JavaScript -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Nova/Editar Mensagem -->
+<div class="modal fade" id="messageModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="messageModalTitle">Nova Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="messageForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="message-name" class="form-label">Nome da Mensagem *</label>
+                                <input type="text" class="form-control" id="message-name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="message-type" class="form-label">Tipo *</label>
+                                <select class="form-select" id="message-type" required>
+                                    <option value="">Selecione o tipo</option>
+                                    <option value="welcome">Boas-vindas</option>
+                                    <option value="payment_reminder">Lembrete de Pagamento</option>
+                                    <option value="payment_confirmation">Confirmação de Pagamento</option>
+                                    <option value="access_granted">Acesso Concedido</option>
+                                    <option value="access_denied">Acesso Negado</option>
+                                    <option value="general">Geral</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="mb-3">
+                                <label for="message-language" class="form-label">Idioma *</label>
+                                <select class="form-select" id="message-language" required>
+                                    <option value="pt">Português</option>
+                                    <option value="en">Inglês</option>
+                                    <option value="es">Espanhol</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="message-subject" class="form-label">Assunto</label>
+                        <input type="text" class="form-control" id="message-subject">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="message-content" class="form-label">Conteúdo da Mensagem *</label>
+                        <textarea class="form-control" id="message-content" rows="8" required></textarea>
+                        <div class="form-text">
+                            Use as seguintes variáveis disponíveis: <code>{user_name}</code>, <code>{product_name}</code>, <code>{order_number}</code>, <code>{amount}</code>, <code>{access_link}</code>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="message-active" checked>
+                            <label class="form-check-label" for="message-active">
+                                Mensagem ativa
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Preview -->
+                    <div class="mb-3">
+                        <label class="form-label">Preview da Mensagem</label>
+                        <div class="border rounded p-3 bg-light" id="message-preview">
+                            <small class="text-muted">Digite o conteúdo para ver o preview</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-info" onclick="previewMessage()">Preview</button>
+                    <button type="submit" class="btn btn-primary">Salvar Mensagem</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Visualização -->
+<div class="modal fade" id="viewMessageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Visualizar Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="view-message-content">
+                <!-- Conteúdo será inserido via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="editMessage()">Editar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.type-welcome { background-color: #198754; color: white; }
+.type-payment_reminder { background-color: #ffc107; color: black; }
+.type-payment_confirmation { background-color: #0d6efd; color: white; }
+.type-access_granted { background-color: #20c997; color: white; }
+.type-access_denied { background-color: #dc3545; color: white; }
+.type-general { background-color: #6c757d; color: white; }
+
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.status-active {
+    background-color: #198754;
+    color: #fff;
+}
+
+.status-inactive {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+.variables-list {
+    max-width: 200px;
+}
+
+.variable-tag {
+    font-size: 0.7rem;
+    margin: 1px;
+}
+</style>
+
+<script>
+let currentPage = 1;
+let messagesData = [];
+let currentMessageId = null;
+
+// Carregar mensagens ao inicializar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadMessages();
+    loadMessageStats();
+    
+    // Preview em tempo real
+    document.getElementById('message-content').addEventListener('input', previewMessage);
+});
+
+async function loadMessages(page = 1) {
+    try {
+        const response = await fetch(`/api/messages?page=${page}&limit=10`);
+        const data = await response.json();
+        
+        messagesData = data.messages || [];
+        currentPage = page;
+        
+        renderMessagesTable();
+        renderPagination(data.total || 0, data.page || 1, data.pages || 1);
+    } catch (error) {
+        console.error('Erro ao carregar mensagens:', error);
+        showAlert('Erro ao carregar mensagens', 'danger');
+    }
+}
+
+async function loadMessageStats() {
+    try {
+        const response = await fetch('/api/messages/stats');
+        const stats = await response.json();
+        
+        document.getElementById('total-messages').textContent = stats.total_messages || 0;
+        document.getElementById('active-messages').textContent = stats.active_messages || 0;
+        document.getElementById('welcome-messages').textContent = stats.welcome_messages || 0;
+        document.getElementById('reminder-messages').textContent = stats.reminder_messages || 0;
+    } catch (error) {
+        console.error('Erro ao carregar estatísticas:', error);
+    }
+}
+
+function renderMessagesTable() {
+    const tbody = document.getElementById('messages-table-body');
+    
+    if (!messagesData.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-4">
+                    <i class="bi bi-chat-text fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Nenhuma mensagem encontrada</p>
+                    <button class="btn btn-primary" onclick="showNewMessageModal()">
+                        <i class="bi bi-plus-circle"></i> Criar primeira mensagem
+                    </button>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = messagesData.map(message => `
+        <tr>
+            <td>
+                <strong>${message.name}</strong>
+            </td>
+            <td>
+                <span class="badge type-badge type-${message.type}">
+                    ${getTypeText(message.type)}
+                </span>
+            </td>
+            <td>${message.subject || 'Sem assunto'}</td>
+            <td>
+                <span class="badge bg-info">${message.language.toUpperCase()}</span>
+            </td>
+            <td>
+                <span class="badge status-badge ${message.is_active ? 'status-active' : 'status-inactive'}">
+                    ${message.is_active ? 'Ativa' : 'Inativa'}
+                </span>
+            </td>
+            <td>
+                <div class="variables-list">
+                    ${message.available_variables ? message.available_variables.split(',').map(v => 
+                        `<span class="badge bg-secondary variable-tag">${v.trim()}</span>`
+                    ).join('') : '<small class="text-muted">Nenhuma</small>'}
+                </div>
+            </td>
+            <td>
+                <div>
+                    ${formatDate(message.created_at)}<br>
+                    <small class="text-muted">${formatTime(message.created_at)}</small>
+                </div>
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewMessage(${message.id})" title="Visualizar">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="editMessage(${message.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-${message.is_active ? 'secondary' : 'success'}" 
+                            onclick="toggleMessageStatus(${message.id})" 
+                            title="${message.is_active ? 'Desativar' : 'Ativar'}">
+                        <i class="bi bi-toggle-${message.is_active ? 'on' : 'off'}"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMessage(${message.id})" title="Excluir">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getTypeText(type) {
+    const typeMap = {
+        'welcome': 'Boas-vindas',
+        'payment_reminder': 'Lembrete',
+        'payment_confirmation': 'Confirmação',
+        'access_granted': 'Acesso Concedido',
+        'access_denied': 'Acesso Negado',
+        'general': 'Geral'
+    };
+    return typeMap[type] || type;
+}
+
+function showNewMessageModal() {
+    currentMessageId = null;
+    document.getElementById('messageModalTitle').textContent = 'Nova Mensagem';
+    document.getElementById('messageForm').reset();
+    document.getElementById('message-active').checked = true;
+    previewMessage();
+    
+    const modal = new bootstrap.Modal(document.getElementById('messageModal'));
+    modal.show();
+}
+
+function editMessage(messageId = currentMessageId) {
+    if (!messageId) return;
+    
+    const message = messagesData.find(m => m.id === messageId);
+    if (!message) return;
+    
+    currentMessageId = messageId;
+    document.getElementById('messageModalTitle').textContent = 'Editar Mensagem';
+    
+    // Preencher formulário
+    document.getElementById('message-name').value = message.name;
+    document.getElementById('message-type').value = message.type;
+    document.getElementById('message-language').value = message.language;
+    document.getElementById('message-subject').value = message.subject || '';
+    document.getElementById('message-content').value = message.content;
+    document.getElementById('message-active').checked = message.is_active;
+    
+    previewMessage();
+    
+    const modal = new bootstrap.Modal(document.getElementById('messageModal'));
+    modal.show();
+}
+
+function viewMessage(messageId) {
+    const message = messagesData.find(m => m.id === messageId);
+    if (!message) return;
+    
+    const modalBody = document.getElementById('view-message-content');
+    modalBody.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Informações da Mensagem</h6>
+                <p><strong>Nome:</strong> ${message.name}</p>
+                <p><strong>Tipo:</strong> <span class="badge type-${message.type}">${getTypeText(message.type)}</span></p>
+                <p><strong>Assunto:</strong> ${message.subject || 'Sem assunto'}</p>
+                <p><strong>Idioma:</strong> <span class="badge bg-info">${message.language.toUpperCase()}</span></p>
+                <p><strong>Status:</strong> <span class="badge ${message.is_active ? 'bg-success' : 'bg-secondary'}">${message.is_active ? 'Ativa' : 'Inativa'}</span></p>
+            </div>
+            <div class="col-md-6">
+                <h6>Metadados</h6>
+                <p><strong>Criada em:</strong> ${formatDateTime(message.created_at)}</p>
+                <p><strong>Atualizada em:</strong> ${formatDateTime(message.updated_at)}</p>
+                <p><strong>Variáveis:</strong> ${message.available_variables || 'Nenhuma'}</p>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-12">
+                <h6>Conteúdo da Mensagem</h6>
+                <div class="border rounded p-3 bg-light">
+                    <pre style="white-space: pre-wrap; font-family: inherit;">${message.content}</pre>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-12">
+                <h6>Preview com Variáveis</h6>
+                <div class="border rounded p-3 bg-light">
+                    <pre style="white-space: pre-wrap; font-family: inherit;">${generatePreview(message.content)}</pre>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    currentMessageId = messageId;
+    const modal = new bootstrap.Modal(document.getElementById('viewMessageModal'));
+    modal.show();
+}
+
+function previewMessage() {
+    const content = document.getElementById('message-content').value;
+    const preview = document.getElementById('message-preview');
+    
+    if (!content.trim()) {
+        preview.innerHTML = '<small class="text-muted">Digite o conteúdo para ver o preview</small>';
+        return;
+    }
+    
+    preview.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit; margin: 0;">${generatePreview(content)}</pre>`;
+}
+
+function generatePreview(content) {
+    return content
+        .replace(/\{user_name\}/g, 'João Silva')
+        .replace(/\{product_name\}/g, 'Produto Exemplo')
+        .replace(/\{order_number\}/g, 'ORD-123456')
+        .replace(/\{amount\}/g, 'R$ 99,90')
+        .replace(/\{access_link\}/g, 'https://t.me/joinchat/exemplo');
+}
+
+async function saveMessage() {
+    const form = document.getElementById('messageForm');
+    const formData = new FormData(form);
+    
+    const messageData = {
+        name: document.getElementById('message-name').value,
+        type: document.getElementById('message-type').value,
+        language: document.getElementById('message-language').value,
+        subject: document.getElementById('message-subject').value,
+        content: document.getElementById('message-content').value,
+        is_active: document.getElementById('message-active').checked
+    };
+    
+    try {
+        const url = currentMessageId ? `/api/messages/${currentMessageId}` : '/api/messages';
+        const method = currentMessageId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(messageData)
+        });
+        
+        if (response.ok) {
+            showAlert(`Mensagem ${currentMessageId ? 'atualizada' : 'criada'} com sucesso!`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('messageModal')).hide();
+            loadMessages(currentPage);
+            loadMessageStats();
+        } else {
+            throw new Error('Erro ao salvar mensagem');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar mensagem:', error);
+        showAlert('Erro ao salvar mensagem', 'danger');
+    }
+}
+
+async function toggleMessageStatus(messageId) {
+    try {
+        const message = messagesData.find(m => m.id === messageId);
+        const newStatus = !message.is_active;
+        
+        const response = await fetch(`/api/messages/${messageId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                is_active: newStatus
+            })
+        });
+        
+        if (response.ok) {
+            showAlert(`Mensagem ${newStatus ? 'ativada' : 'desativada'} com sucesso!`, 'success');
+            loadMessages(currentPage);
+            loadMessageStats();
+        } else {
+            throw new Error('Erro ao atualizar status da mensagem');
+        }
+    } catch (error) {
+        console.error('Erro ao alterar status:', error);
+        showAlert('Erro ao alterar status da mensagem', 'danger');
+    }
+}
+
+async function deleteMessage(messageId) {
+    if (!confirm('Tem certeza que deseja excluir esta mensagem? Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/messages/${messageId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showAlert('Mensagem excluída com sucesso!', 'success');
+            loadMessages(currentPage);
+            loadMessageStats();
+        } else {
+            throw new Error('Erro ao excluir mensagem');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir mensagem:', error);
+        showAlert('Erro ao excluir mensagem', 'danger');
+    }
+}
+
+function filterMessages() {
+    // Implementar lógica de filtro
+    loadMessages(1);
+}
+
+function clearFilters() {
+    document.getElementById('type-filter').value = '';
+    document.getElementById('language-filter').value = '';
+    document.getElementById('status-filter').value = '';
+    filterMessages();
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+}
+
+function formatTime(dateString) {
+    return new Date(dateString).toLocaleTimeString('pt-BR');
+}
+
+function formatDateTime(dateString) {
+    return new Date(dateString).toLocaleString('pt-BR');
+}
+
+function renderPagination(total, page, pages) {
+    const pagination = document.getElementById('messages-pagination');
+    
+    if (pages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // Botão anterior
+    paginationHTML += `
+        <li class="page-item ${page === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadMessages(${page - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) {
+        paginationHTML += `
+            <li class="page-item ${i === page ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadMessages(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Botão próximo
+    paginationHTML += `
+        <li class="page-item ${page === pages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadMessages(${page + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+function showAlert(message, type = 'info') {
+    // Implementar sistema de alertas
+    console.log(`${type.toUpperCase()}: ${message}`);
+}
+
+// Form submit handler
+document.getElementById('messageForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveMessage();
+});
+</script>
+{% endblock %}

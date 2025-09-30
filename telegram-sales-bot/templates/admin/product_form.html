@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product %}Editar{% else %}Novo{% endif %} Produto - Painel Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% if product %}Editar{% else %}Novo{% endif %} Produto</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome do Produto *</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="{{ product.name if product else '' }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="description" name="description" rows="4">{{ product.description if product else '' }}</textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="price" class="form-label">Preço (R$) *</label>
+                            <input type="number" class="form-control" id="price" name="price" 
+                                   step="0.01" min="0.01" value="{{ product.price if product else '' }}" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="stock_quantity" class="form-label">Estoque</label>
+                            <input type="number" class="form-control" id="stock_quantity" name="stock_quantity" 
+                                   value="{{ product.stock_quantity if product else -1 }}" min="-1">
+                            <small class="form-text text-muted">Use -1 para estoque ilimitado</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="telegram_group_id" class="form-label">ID do Grupo/Canal Telegram</label>
+                        <input type="text" class="form-control" id="telegram_group_id" name="telegram_group_id" 
+                               value="{{ product.telegram_group_id if product else '' }}"
+                               placeholder="Ex: -1001234567890">
+                        <small class="form-text text-muted">
+                            ID do grupo ou canal onde o usuário será adicionado após o pagamento
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="access_duration_hours" class="form-label">Duração do Acesso (horas)</label>
+                        <input type="number" class="form-control" id="access_duration_hours" name="access_duration_hours" 
+                               value="{{ product.access_duration_hours if product else 0 }}" min="0">
+                        <small class="form-text text-muted">Use 0 para acesso permanente</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="image" class="form-label">Imagem do Produto</label>
+                        <input type="file" class="form-control" id="image" name="image" accept="image/*">
+                        {% if product and product.main_image %}
+                        <div class="mt-2">
+                            <img src="{{ product.main_image.image_url }}" class="img-thumbnail" style="max-width: 200px;">
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Salvar
+                        </button>
+                        <a href="/admin/products" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Dicas</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Como obter o ID do grupo:</strong></p>
+                <ol class="small">
+                    <li>Adicione o bot ao grupo/canal</li>
+                    <li>Torne o bot administrador</li>
+                    <li>Envie uma mensagem no grupo</li>
+                    <li>Acesse: <code>https://api.telegram.org/bot{TOKEN}/getUpdates</code></li>
+                    <li>Procure pelo "chat_id" (será negativo para grupos)</li>
+                </ol>
+                
+                <hr>
+                
+                <p><strong>Tipos de acesso:</strong></p>
+                <ul class="small">
+                    <li><strong>Permanente:</strong> Duração = 0</li>
+                    <li><strong>Temporário:</strong> Defina as horas</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

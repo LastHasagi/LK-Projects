@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-gear"></i> Configurações do Sistema</h1>
+                <button class="btn btn-success" onclick="saveAllSettings()">
+                    <i class="bi bi-check-circle"></i> Salvar Todas as Configurações
+                </button>
+            </div>
+
+            <!-- Navegação das Abas -->
+            <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="bot-tab" data-bs-toggle="tab" data-bs-target="#bot-settings" type="button" role="tab">
+                        <i class="bi bi-robot"></i> Bot do Telegram
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="payment-tab" data-bs-toggle="tab" data-bs-target="#payment-settings" type="button" role="tab">
+                        <i class="bi bi-credit-card"></i> Pagamentos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-settings" type="button" role="tab">
+                        <i class="bi bi-cpu"></i> Sistema
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security-settings" type="button" role="tab">
+                        <i class="bi bi-shield-lock"></i> Segurança
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Conteúdo das Abas -->
+            <div class="tab-content" id="settingsTabContent">
+                
+                <!-- Configurações do Bot -->
+                <div class="tab-pane fade show active" id="bot-settings" role="tabpanel">
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5><i class="bi bi-robot"></i> Configurações do Bot do Telegram</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="bot-settings-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="telegram-bot-token" class="form-label">Token do Bot *</label>
+                                            <input type="password" class="form-control" id="telegram-bot-token" required>
+                                            <div class="form-text">Token fornecido pelo @BotFather no Telegram</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="telegram-webhook-url" class="form-label">URL do Webhook</label>
+                                            <input type="url" class="form-control" id="telegram-webhook-url">
+                                            <div class="form-text">URL para receber atualizações do Telegram (opcional)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="default-group-id" class="form-label">ID do Grupo Padrão</label>
+                                            <input type="text" class="form-control" id="default-group-id" placeholder="@seugrupo ou -1001234567890">
+                                            <div class="form-text">Grupo onde os links de acesso serão enviados</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="default-access-duration" class="form-label">Duração Padrão do Acesso (horas)</label>
+                                            <input type="number" class="form-control" id="default-access-duration" value="24" min="1" max="8760">
+                                            <div class="form-text">Quanto tempo o link de acesso fica válido</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="bot-enabled" checked>
+                                        <label class="form-check-label" for="bot-enabled">
+                                            Bot habilitado
+                                        </label>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configurações de Pagamento -->
+                <div class="tab-pane fade" id="payment-settings" role="tabpanel">
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5><i class="bi bi-credit-card"></i> Configurações de Pagamento</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="payment-settings-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="mercadopago-access-token" class="form-label">MercadoPago - Access Token</label>
+                                            <input type="password" class="form-control" id="mercadopago-access-token">
+                                            <div class="form-text">Token de acesso do MercadoPago</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="mercadopago-public-key" class="form-label">MercadoPago - Public Key</label>
+                                            <input type="text" class="form-control" id="mercadopago-public-key">
+                                            <div class="form-text">Chave pública do MercadoPago</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="mercadopago-webhook-secret" class="form-label">MercadoPago - Webhook Secret</label>
+                                            <input type="password" class="form-control" id="mercadopago-webhook-secret">
+                                            <div class="form-text">Chave secreta para validar webhooks</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="default-currency" class="form-label">Moeda Padrão</label>
+                                            <select class="form-select" id="default-currency">
+                                                <option value="BRL" selected>Real Brasileiro (BRL)</option>
+                                                <option value="USD">Dólar Americano (USD)</option>
+                                                <option value="EUR">Euro (EUR)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="payment-enabled" checked>
+                                        <label class="form-check-label" for="payment-enabled">
+                                            Sistema de pagamento habilitado
+                                        </label>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configurações do Sistema -->
+                <div class="tab-pane fade" id="system-settings" role="tabpanel">
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5><i class="bi bi-cpu"></i> Configurações do Sistema</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="system-settings-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="app-name" class="form-label">Nome da Aplicação</label>
+                                            <input type="text" class="form-control" id="app-name" value="Telegram Sales Bot">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="app-version" class="form-label">Versão</label>
+                                            <input type="text" class="form-control" id="app-version" value="1.0.0" readonly>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="host" class="form-label">Host</label>
+                                            <input type="text" class="form-control" id="host" value="127.0.0.1">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="port" class="form-label">Porta</label>
+                                            <input type="number" class="form-control" id="port" value="8000" min="1" max="65535">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="database-url" class="form-label">URL do Banco de Dados</label>
+                                            <input type="text" class="form-control" id="database-url" readonly>
+                                            <div class="form-text">Configuração do banco de dados</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="redis-url" class="form-label">URL do Redis</label>
+                                            <input type="text" class="form-control" id="redis-url" placeholder="redis://localhost:6379">
+                                            <div class="form-text">URL do Redis para cache (opcional)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="debug-mode">
+                                        <label class="form-check-label" for="debug-mode">
+                                            Modo debug
+                                        </label>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configurações de Segurança -->
+                <div class="tab-pane fade" id="security-settings" role="tabpanel">
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5><i class="bi bi-shield-lock"></i> Configurações de Segurança</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="security-settings-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="admin-username" class="form-label">Nome de Usuário Admin</label>
+                                            <input type="text" class="form-control" id="admin-username" value="admin">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="admin-password" class="form-label">Senha Admin</label>
+                                            <input type="password" class="form-control" id="admin-password" placeholder="Deixe em branco para não alterar">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="secret-key" class="form-label">Chave Secreta</label>
+                                            <input type="password" class="form-control" id="secret-key">
+                                            <div class="form-text">Chave para assinar tokens JWT</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="token-expire-minutes" class="form-label">Expiração do Token (minutos)</label>
+                                            <input type="number" class="form-control" id="token-expire-minutes" value="30" min="5" max="1440">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="algorithm" class="form-label">Algoritmo de Criptografia</label>
+                                    <select class="form-select" id="algorithm">
+                                        <option value="HS256" selected>HS256</option>
+                                        <option value="HS384">HS384</option>
+                                        <option value="HS512">HS512</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="auth-enabled" checked>
+                                        <label class="form-check-label" for="auth-enabled">
+                                            Autenticação habilitada
+                                        </label>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Teste de Conexão -->
+<div class="modal fade" id="testConnectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Teste de Conexão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="test-connection-result">
+                <!-- Resultado do teste será inserido aqui -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="runConnectionTest()">Testar Novamente</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.test-button {
+    margin-top: 0.5rem;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-online {
+    background-color: #28a745;
+}
+
+.status-offline {
+    background-color: #dc3545;
+}
+
+.status-unknown {
+    background-color: #6c757d;
+}
+</style>
+
+<script>
+let settingsData = {};
+
+// Carregar configurações ao inicializar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+});
+
+async function loadSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        const settings = await response.json();
+        
+        settingsData = settings;
+        populateSettingsForms(settings);
+    } catch (error) {
+        console.error('Erro ao carregar configurações:', error);
+        showAlert('Erro ao carregar configurações', 'danger');
+    }
+}
+
+function populateSettingsForms(settings) {
+    // Bot settings
+    document.getElementById('telegram-bot-token').value = settings.telegram_bot_token || '';
+    document.getElementById('telegram-webhook-url').value = settings.telegram_webhook_url || '';
+    document.getElementById('default-group-id').value = settings.default_group_id || '';
+    document.getElementById('default-access-duration').value = settings.default_access_duration || 24;
+    document.getElementById('bot-enabled').checked = settings.bot_enabled !== false;
+    
+    // Payment settings
+    document.getElementById('mercadopago-access-token').value = settings.mercadopago_access_token || '';
+    document.getElementById('mercadopago-public-key').value = settings.mercadopago_public_key || '';
+    document.getElementById('mercadopago-webhook-secret').value = settings.mercadopago_webhook_secret || '';
+    document.getElementById('default-currency').value = settings.default_currency || 'BRL';
+    document.getElementById('payment-enabled').checked = settings.payment_enabled !== false;
+    
+    // System settings
+    document.getElementById('app-name').value = settings.app_name || 'Telegram Sales Bot';
+    document.getElementById('app-version').value = settings.app_version || '1.0.0';
+    document.getElementById('host').value = settings.host || '127.0.0.1';
+    document.getElementById('port').value = settings.port || 8000;
+    document.getElementById('database-url').value = settings.database_url || '';
+    document.getElementById('redis-url').value = settings.redis_url || '';
+    document.getElementById('debug-mode').checked = settings.debug === true;
+    
+    // Security settings
+    document.getElementById('admin-username').value = settings.admin_username || 'admin';
+    document.getElementById('secret-key').value = settings.secret_key || '';
+    document.getElementById('token-expire-minutes').value = settings.access_token_expire_minutes || 30;
+    document.getElementById('algorithm').value = settings.algorithm || 'HS256';
+    document.getElementById('auth-enabled').checked = settings.auth_enabled !== false;
+}
+
+async function saveAllSettings() {
+    try {
+        const settings = {
+            // Bot settings
+            telegram_bot_token: document.getElementById('telegram-bot-token').value,
+            telegram_webhook_url: document.getElementById('telegram-webhook-url').value,
+            default_group_id: document.getElementById('default-group-id').value,
+            default_access_duration: parseInt(document.getElementById('default-access-duration').value),
+            bot_enabled: document.getElementById('bot-enabled').checked,
+            
+            // Payment settings
+            mercadopago_access_token: document.getElementById('mercadopago-access-token').value,
+            mercadopago_public_key: document.getElementById('mercadopago-public-key').value,
+            mercadopago_webhook_secret: document.getElementById('mercadopago-webhook-secret').value,
+            default_currency: document.getElementById('default-currency').value,
+            payment_enabled: document.getElementById('payment-enabled').checked,
+            
+            // System settings
+            app_name: document.getElementById('app-name').value,
+            host: document.getElementById('host').value,
+            port: parseInt(document.getElementById('port').value),
+            redis_url: document.getElementById('redis-url').value,
+            debug: document.getElementById('debug-mode').checked,
+            
+            // Security settings
+            admin_username: document.getElementById('admin-username').value,
+            admin_password: document.getElementById('admin-password').value,
+            secret_key: document.getElementById('secret-key').value,
+            access_token_expire_minutes: parseInt(document.getElementById('token-expire-minutes').value),
+            algorithm: document.getElementById('algorithm').value,
+            auth_enabled: document.getElementById('auth-enabled').checked
+        };
+        
+        const response = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        if (response.ok) {
+            showAlert('Configurações salvas com sucesso!', 'success');
+            loadSettings(); // Recarregar para atualizar a interface
+        } else {
+            throw new Error('Erro ao salvar configurações');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar configurações:', error);
+        showAlert('Erro ao salvar configurações', 'danger');
+    }
+}
+
+async function testConnection(type) {
+    try {
+        const response = await fetch(`/api/settings/test/${type}`, {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        const modalBody = document.getElementById('test-connection-result');
+        modalBody.innerHTML = `
+            <div class="alert alert-${result.success ? 'success' : 'danger'}">
+                <h6><span class="status-indicator status-${result.success ? 'online' : 'offline'}"></span>
+                ${result.success ? 'Conexão bem-sucedida!' : 'Falha na conexão'}</h6>
+                <p class="mb-0">${result.message}</p>
+            </div>
+            ${result.details ? `<pre class="mt-3"><code>${JSON.stringify(result.details, null, 2)}</code></pre>` : ''}
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('testConnectionModal'));
+        modal.show();
+    } catch (error) {
+        console.error('Erro ao testar conexão:', error);
+        showAlert('Erro ao testar conexão', 'danger');
+    }
+}
+
+function runConnectionTest() {
+    // Implementar teste baseado na aba ativa
+    const activeTab = document.querySelector('#settingsTabs .nav-link.active');
+    let testType = 'system';
+    
+    if (activeTab.id === 'bot-tab') {
+        testType = 'telegram';
+    } else if (activeTab.id === 'payment-tab') {
+        testType = 'payment';
+    }
+    
+    testConnection(testType);
+}
+
+function showAlert(message, type = 'info') {
+    // Implementar sistema de alertas
+    console.log(`${type.toUpperCase()}: ${message}`);
+}
+
+// Auto-save em algumas configurações
+document.addEventListener('DOMContentLoaded', function() {
+    const autoSaveFields = ['app-name', 'host', 'port', 'debug-mode'];
+    
+    autoSaveFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('change', function() {
+                // Auto-save após 2 segundos de inatividade
+                clearTimeout(window.autoSaveTimeout);
+                window.autoSaveTimeout = setTimeout(() => {
+                    saveAllSettings();
+                }, 2000);
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

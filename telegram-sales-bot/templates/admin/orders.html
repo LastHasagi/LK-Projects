@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block title %}Pedidos - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="bi bi-receipt"></i> Gestão de Pedidos</h1>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="filterOrders('all')">Todos</button>
+                    <button type="button" class="btn btn-outline-warning" onclick="filterOrders('pending')">Pendentes</button>
+                    <button type="button" class="btn btn-outline-success" onclick="filterOrders('paid')">Pagos</button>
+                    <button type="button" class="btn btn-outline-danger" onclick="filterOrders('cancelled')">Cancelados</button>
+                </div>
+            </div>
+
+            <!-- Estatísticas Rápidas -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="total-orders">0</h4>
+                                    <p class="mb-0">Total de Pedidos</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-receipt fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="pending-orders">0</h4>
+                                    <p class="mb-0">Pendentes</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-clock fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="paid-orders">0</h4>
+                                    <p class="mb-0">Pagos</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-check-circle fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="total-revenue">R$ 0,00</h4>
+                                    <p class="mb-0">Receita Total</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="bi bi-currency-dollar fs-1"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Pedidos -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h5 class="mb-0">Lista de Pedidos</h5>
+                        </div>
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Buscar pedido..." id="search-orders">
+                                <button class="btn btn-outline-secondary" type="button">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Número</th>
+                                    <th>Cliente</th>
+                                    <th>Status</th>
+                                    <th>Valor</th>
+                                    <th>Data</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-table-body">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Carregando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Carregando pedidos...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paginação -->
+            <nav aria-label="Navegação de pedidos" class="mt-3">
+                <ul class="pagination justify-content-center" id="orders-pagination">
+                    <!-- Paginação será inserida aqui via JavaScript -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes do Pedido -->
+<div class="modal fade" id="orderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Pedido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="order-details">
+                <!-- Conteúdo será inserido via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="updateOrderStatus()">Atualizar Status</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.status-pending {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.status-paid {
+    background-color: #198754;
+    color: #fff;
+}
+
+.status-cancelled {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.order-row {
+    cursor: pointer;
+}
+
+.order-row:hover {
+    background-color: #f8f9fa;
+}
+</style>
+
+<script>
+let currentPage = 1;
+let currentFilter = 'all';
+let ordersData = [];
+
+// Carregar pedidos ao inicializar a página
+document.addEventListener('DOMContentLoaded', function() {
+    loadOrders();
+    loadOrderStats();
+});
+
+async function loadOrders(page = 1) {
+    try {
+        const response = await fetch(`/api/orders?page=${page}&limit=10`);
+        const data = await response.json();
+        
+        ordersData = data.orders || [];
+        currentPage = page;
+        
+        renderOrdersTable();
+        renderPagination(data.total || 0, data.page || 1, data.pages || 1);
+    } catch (error) {
+        console.error('Erro ao carregar pedidos:', error);
+        showAlert('Erro ao carregar pedidos', 'danger');
+    }
+}
+
+async function loadOrderStats() {
+    try {
+        const response = await fetch('/api/orders/stats');
+        const stats = await response.json();
+        
+        document.getElementById('total-orders').textContent = stats.total_orders || 0;
+        document.getElementById('pending-orders').textContent = stats.pending_orders || 0;
+        document.getElementById('paid-orders').textContent = stats.paid_orders || 0;
+        document.getElementById('total-revenue').textContent = formatCurrency(stats.total_revenue || 0);
+    } catch (error) {
+        console.error('Erro ao carregar estatísticas:', error);
+    }
+}
+
+function renderOrdersTable() {
+    const tbody = document.getElementById('orders-table-body');
+    
+    if (!ordersData.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4">
+                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Nenhum pedido encontrado</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = ordersData.map(order => `
+        <tr class="order-row" onclick="showOrderDetails(${order.id})">
+            <td>${order.id}</td>
+            <td><strong>#${order.order_number}</strong></td>
+            <td>
+                <div>
+                    <strong>${order.user?.first_name || 'N/A'} ${order.user?.last_name || ''}</strong><br>
+                    <small class="text-muted">@${order.user?.username || 'N/A'}</small>
+                </div>
+            </td>
+            <td>
+                <span class="badge status-badge status-${order.status.toLowerCase()}">
+                    ${getStatusText(order.status)}
+                </span>
+            </td>
+            <td><strong>${formatCurrency(order.total_amount)}</strong></td>
+            <td>
+                <div>
+                    ${formatDate(order.created_at)}<br>
+                    <small class="text-muted">${formatTime(order.created_at)}</small>
+                </div>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); showOrderDetails(${order.id})">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getStatusText(status) {
+    const statusMap = {
+        'PENDING': 'Pendente',
+        'PAID': 'Pago',
+        'CANCELLED': 'Cancelado',
+        'REFUNDED': 'Reembolsado'
+    };
+    return statusMap[status] || status;
+}
+
+function showOrderDetails(orderId) {
+    const order = ordersData.find(o => o.id === orderId);
+    if (!order) return;
+    
+    const modalBody = document.getElementById('order-details');
+    modalBody.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Informações do Pedido</h6>
+                <p><strong>Número:</strong> #${order.order_number}</p>
+                <p><strong>Status:</strong> <span class="badge status-${order.status.toLowerCase()}">${getStatusText(order.status)}</span></p>
+                <p><strong>Valor Total:</strong> ${formatCurrency(order.total_amount)}</p>
+                <p><strong>Data:</strong> ${formatDateTime(order.created_at)}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>Informações do Cliente</h6>
+                <p><strong>Nome:</strong> ${order.user?.first_name || 'N/A'} ${order.user?.last_name || ''}</p>
+                <p><strong>Username:</strong> @${order.user?.username || 'N/A'}</p>
+                <p><strong>Telegram ID:</strong> ${order.user?.telegram_id || 'N/A'}</p>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div class="col-12">
+                <h6>Itens do Pedido</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Produto</th>
+                                <th>Quantidade</th>
+                                <th>Preço</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${order.items?.map(item => `
+                                <tr>
+                                    <td>${item.product?.name || 'N/A'}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${formatCurrency(item.price)}</td>
+                                    <td>${formatCurrency(item.quantity * item.price)}</td>
+                                </tr>
+                            `).join('') || '<tr><td colspan="4">Nenhum item encontrado</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('orderModal'));
+    modal.show();
+}
+
+function filterOrders(filter) {
+    currentFilter = filter;
+    // Aqui você implementaria a lógica de filtro
+    loadOrders(1);
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+}
+
+function formatTime(dateString) {
+    return new Date(dateString).toLocaleTimeString('pt-BR');
+}
+
+function formatDateTime(dateString) {
+    return new Date(dateString).toLocaleString('pt-BR');
+}
+
+function renderPagination(total, page, pages) {
+    const pagination = document.getElementById('orders-pagination');
+    
+    if (pages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // Botão anterior
+    paginationHTML += `
+        <li class="page-item ${page === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadOrders(${page - 1})">Anterior</a>
+        </li>
+    `;
+    
+    // Páginas
+    for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) {
+        paginationHTML += `
+            <li class="page-item ${i === page ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadOrders(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    // Botão próximo
+    paginationHTML += `
+        <li class="page-item ${page === pages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="loadOrders(${page + 1})">Próximo</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+function showAlert(message, type = 'info') {
+    // Implementar sistema de alertas
+    console.log(`${type.toUpperCase()}: ${message}`);
+}
+</script>
+{% endblock %}
