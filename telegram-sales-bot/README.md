@@ -48,7 +48,7 @@ Bot completo de vendas para Telegram com integração de pagamento, painel admin
 
 1. **Clone o repositório**
 ```bash
-git clone <repo-url>
+git clone https://github.com/LastHasagi/LK-Projects/tree/main/telegram-sales-bot.git
 cd telegram-sales-bot
 ```
 
