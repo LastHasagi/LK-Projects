@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Song Recognition - Identifique Músicas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-music"></i> Song Recognition</h1>
+            <p>Identifique músicas tocando ao seu redor</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Seção de Gravação -->
+            <section class="recording-section">
+                <div class="recording-controls">
+                    <button id="recordBtn" class="btn btn-primary">
+                        <i class="fas fa-microphone"></i>
+                        <span>Iniciar Gravação</span>
+                    </button>
+                    <button id="stopBtn" class="btn btn-danger" disabled>
+                        <i class="fas fa-stop"></i>
+                        <span>Parar Gravação</span>
+                    </button>
+                </div>
+
+                <div class="recording-status">
+                    <div id="recordingIndicator" class="recording-indicator hidden">
+                        <div class="pulse"></div>
+                        <span>Gravando...</span>
+                    </div>
+                    <div id="recordingTimer" class="timer hidden">00:00</div>
+                </div>
+
+                <div class="upload-section">
+                    <h3>Ou faça upload de um arquivo</h3>
+                    <input type="file" id="audioFile" accept="audio/*" class="file-input">
+                    <button id="uploadBtn" class="btn btn-secondary" disabled>
+                        <i class="fas fa-upload"></i>
+                        <span>Analisar Arquivo</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Seção de Resultado -->
+            <section id="resultSection" class="result-section hidden">
+                <h2>Resultado da Identificação</h2>
+                <div id="resultContent" class="result-content">
+                    <!-- Conteúdo será preenchido dinamicamente -->
+                </div>
+            </section>
+
+            <!-- Seção de Histórico -->
+            <section class="history-section">
+                <h2>Histórico de Identificações</h2>
+                <button id="loadHistoryBtn" class="btn btn-outline">
+                    <i class="fas fa-history"></i>
+                    <span>Carregar Histórico</span>
+                </button>
+                <div id="historyContent" class="history-content">
+                    <!-- Histórico será carregado dinamicamente -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Modal de Loading -->
+        <div id="loadingModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="spinner"></div>
+                <p id="loadingText">Processando áudio...</p>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toastContainer" class="toast-container"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
