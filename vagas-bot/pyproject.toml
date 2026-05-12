@@ -27,6 +27,8 @@ dependencies = [
     "langchain-openai>=0.2",
     "langgraph-checkpoint-postgres>=2.0",
     "psycopg[binary]>=3.2",
+    "weasyprint>=62",
+    "markdown>=3.7",
 ]
 
 [project.optional-dependencies]

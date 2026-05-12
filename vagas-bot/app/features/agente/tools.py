@@ -12,6 +12,12 @@ from app.core.rag.embeddings import embed_texts
 from app.core.redis import get_redis_settings
 from app.features.agente.email_dispatch import dispatch_application_email
 from app.features.candidatura.service import listar_em_andamento
+from app.features.cv.service import get_active_cv
+from app.features.cv.translation import (
+    SUPPORTED_LANGS,
+    CVTranslationError,
+    get_or_create_translated_cv,
+)
 from app.features.descoberta.models import Vaga
 from app.features.filtros.service import listar_filtros
 from app.features.matching.models import MatchResult
@@ -115,9 +121,14 @@ async def preparar_envio_email_confirmacao(
     assunto: str,
     corpo: str,
     anexar_cv: bool = True,
+    cv_lang: str | None = None,
 ) -> str:
     """Registra o rascunho final; o Telegram mostra botões Enviar/Cancelar.
-    Chame quando o texto do e-mail estiver pronto. O SMTP dispara ao clicar em Enviar."""
+    Chame quando o texto do e-mail estiver pronto. O SMTP dispara ao clicar em Enviar.
+
+    cv_lang: passe 'pt', 'en', 'es' ou 'fr' se a vaga exigir o CV em idioma diferente
+    do português. Antes, chame `traduzir_cv_para_idioma(cv_lang)`. Se não passar,
+    o CV original (pt-BR) é anexado."""
     settings = get_settings()
     if not settings.smtp_user or not settings.smtp_password:
         return (
@@ -132,12 +143,15 @@ async def preparar_envio_email_confirmacao(
         )
     if len(corpo) > _MAX_EMAIL_BODY_CHARS:
         return f"Corpo muito longo (máx. {_MAX_EMAIL_BODY_CHARS} caracteres)."
+    if cv_lang and cv_lang not in SUPPORTED_LANGS:
+        return f"cv_lang inválido: {cv_lang}. Use {', '.join(SUPPORTED_LANGS)}."
     uid = await pend_email_save(
         {
             "destinatario": found[0],
             "assunto": assunto.strip()[:998],
             "corpo": corpo,
             "anexar_cv": anexar_cv,
+            "cv_lang": cv_lang,
         }
     )
     return f"{EMAIL_CONFIRM_PENDING_PREFIX}{uid}"
@@ -149,11 +163,44 @@ async def enviar_candidatura_por_email(
     assunto: str,
     corpo: str,
     anexar_cv: bool = True,
+    cv_lang: str | None = None,
 ) -> str:
     """Envia e-mail na hora, sem botões. Use se o usuário confirmar só por texto.
-    Fluxo normal: preferir `preparar_envio_email_confirmacao` após o rascunho."""
+    Fluxo normal: preferir `preparar_envio_email_confirmacao` após o rascunho.
+
+    cv_lang: mesmo significado de `preparar_envio_email_confirmacao`."""
     return await dispatch_application_email(
-        destinatario, assunto, corpo, anexar_cv=anexar_cv
+        destinatario, assunto, corpo, anexar_cv=anexar_cv, cv_lang=cv_lang
+    )
+
+
+@tool
+async def traduzir_cv_para_idioma(idioma: str) -> str:
+    """Traduz o CV ativo para o idioma alvo e prepara o PDF para anexo.
+    Use quando a vaga exigir CV em idioma diferente do português
+    (ex.: 'submit your resume in English', 'currículum en español').
+    Códigos aceitos: 'pt', 'en', 'es', 'fr'. Primeira chamada por idioma
+    é cara (~10s); chamadas seguintes para o mesmo CV+idioma são cache.
+
+    Depois desta tool, ao chamar `preparar_envio_email_confirmacao` ou
+    `enviar_candidatura_por_email`, passe `cv_lang=<idioma>` para anexar
+    o CV traduzido. Sem isso, o CV original em pt-BR é anexado."""
+    if idioma not in SUPPORTED_LANGS:
+        return f"Idioma não suportado: {idioma}. Use {', '.join(SUPPORTED_LANGS)}."
+    maker = get_session_maker()
+    async with maker() as session:
+        cv = await get_active_cv(session)
+        if cv is None:
+            return "Nenhum CV ativo. Faça upload de um PDF via /cv antes de traduzir."
+        try:
+            translation = await get_or_create_translated_cv(
+                session, cv_id=cv.id, target_lang=idioma
+            )
+        except CVTranslationError as e:
+            return f"Falha ao traduzir CV: {e!s}"
+    return (
+        f"CV traduzido para '{idioma}' está pronto (cv_id={cv.id}, arquivo "
+        f"{translation.pdf_path}). Ao montar o envio, passe cv_lang='{idioma}'."
     )
 
 
@@ -165,4 +212,5 @@ AGENT_TOOLS = [
     extrair_emails_do_texto,
     preparar_envio_email_confirmacao,
     enviar_candidatura_por_email,
+    traduzir_cv_para_idioma,
 ]

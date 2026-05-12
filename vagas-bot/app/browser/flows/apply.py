@@ -22,6 +22,13 @@ APPLY_BUTTON_SELECTORS = [
     "button:has-text('Candidatar')",
     "a:has-text('Candidatar-se')",
 ]
+STAGE_START_TEXT_FRAGMENTS = [
+    "Começar",
+    "Iniciar etapa",
+    "Iniciar",
+    "Retomar",
+    "Continuar etapa",
+]
 ADVANCE_TEXT_FRAGMENTS = [
     "Salvar e continuar",
     "Responder agora",
@@ -245,7 +252,17 @@ async def _form_signature(page: Page) -> str:
             document.querySelectorAll(
                 "input:not([disabled]), textarea:not([disabled]), select:not([disabled])"
             ).forEach(e => ids.push(`${e.tagName}:${e.type || ''}:${e.name || e.id || ''}`));
-            return ids.sort().join('|');
+            const url = window.location.href;
+            const heading = (
+                document.querySelector('h1, h2, h3, [role="heading"]')
+                    ?.innerText || ''
+            ).trim().slice(0, 200);
+            const progress = (
+                document.querySelector(
+                    '[role="progressbar"], [aria-valuenow], .progress'
+                )?.getAttribute('aria-valuenow') || ''
+            );
+            return `${url}|${heading}|${progress}|${ids.sort().join('|')}`;
         }
     """)
 
@@ -265,10 +282,25 @@ async def apply_to_vaga(
         await _dismiss_popups(page)
 
         if not await _click_apply(page, timeout=10_000):
-            shot = await _screenshot(page, dest_dir=screenshot_dir, prefix=f"{candidatura_id}_no_apply_btn")
-            raise RuntimeError(f"botao Candidatar-se nao encontrado (screenshot {shot})")
-
-        await page.wait_for_timeout(3000)
+            stage_clicked = await _click_any(
+                page, STAGE_START_TEXT_FRAGMENTS, timeout=3000
+            )
+            if stage_clicked:
+                log.info(
+                    "apply_stage_start_fallback",
+                    candidatura_id=candidatura_id, text=stage_clicked,
+                )
+                await page.wait_for_timeout(3000)
+            else:
+                shot = await _screenshot(
+                    page, dest_dir=screenshot_dir,
+                    prefix=f"{candidatura_id}_no_apply_btn",
+                )
+                raise RuntimeError(
+                    f"botao Candidatar-se nao encontrado (screenshot {shot})"
+                )
+        else:
+            await page.wait_for_timeout(3000)
 
         prev_signature: str | None = None
         repeat_count = 0

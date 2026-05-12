@@ -172,24 +172,89 @@ Preencha no `.env`:
   ```
 - Opcional — candidatura por e-mail (Gmail: 2FA + senha de app): `SMTP_USER`, `SMTP_PASSWORD`; opcionais `SMTP_HOST` (padrão `smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_FROM_NAME`.
 
-Sobe:
+### Subir a stack
 
 ```bash
-make up
-make migrate
+# build + sobe tudo em background (postgres, redis, bot, worker)
+docker compose up -d --build
+
+# aplica migrations (1ª vez ou depois de pull com mudanças de schema)
+docker compose exec bot alembic upgrade head
+
+# confere health
 curl http://localhost:8000/healthz
 ```
 
-### Login Gupy (única vez)
+> Atalhos equivalentes via Makefile: `make up`, `make migrate`, `make logs`, `make down`.
 
-Browser anti-detecção precisa de display real para login interativo. Rode no **host** (não no Docker):
+### Operação (docker compose)
+
+```bash
+# logs em tempo real (todos os serviços)
+docker compose logs -f
+
+# só do bot ou do worker
+docker compose logs -f bot
+docker compose logs -f worker
+
+# rebuild + restart depois de mudar código
+docker compose build bot worker
+docker compose up -d bot worker
+
+# restart sem rebuild (ex.: bot travou no polling)
+docker compose restart bot
+
+# recriar containers do zero (útil quando muda .env)
+docker compose up -d --force-recreate bot worker
+
+# parar tudo (mantém volumes)
+docker compose down
+
+# parar e apagar volumes (CV, sessões, screenshots, DB) — destrutivo
+docker compose down -v
+
+# status dos containers
+docker compose ps
+
+# shell no container
+docker compose exec bot bash
+docker compose exec worker bash
+
+# python REPL no container do bot
+docker compose exec bot python
+
+# rodar alembic manualmente
+docker compose exec bot alembic upgrade head
+docker compose exec bot alembic downgrade -1
+docker compose exec bot alembic current
+
+# truncar tabelas (sem dropar schema)
+docker compose exec postgres psql -U vagas -d vagas -c "TRUNCATE candidatura, vaga, cv_chunk, cv_translation RESTART IDENTITY CASCADE;"
+```
+
+### Login Gupy (única vez, e depois sob demanda)
+
+Camoufox precisa de display real para o login interativo — **rode no host, não no Docker**:
 
 ```bash
 cd vagas-bot
+# Windows
 .venv/Scripts/python -m app.tools.gupy_login
+# Linux/Mac
+.venv/bin/python -m app.tools.gupy_login
 ```
 
-Janela do Camoufox abre, você loga no Gupy, tecla ENTER no terminal. A sessão é criptografada (Fernet) e salva no Postgres. Reusável até expirar; quando expirar, mande `/relogin` no chat e rode o CLI de novo.
+Janela do Camoufox abre, você loga no Gupy, tecla ENTER no terminal. A sessão é criptografada (Fernet) e gravada no Postgres do container — reusada pelo worker em toda candidatura.
+
+Quando expirar, o worker vai marcar a candidatura como falha com "sem sessão Gupy ativa; rode /relogin". Mande `/relogin` no chat (instruções) e rode o CLI de novo.
+
+### Token do Telegram revogado
+
+Se o bot começar a crashar com `InvalidToken` (token vazou ou foi regenerado):
+
+1. @BotFather → `/mybots` → seu bot → API Token → Revoke / gere novo
+2. Atualize `TELEGRAM_BOT_TOKEN` no `.env`
+3. `docker compose up -d --force-recreate bot worker`
 
 ### CV
 

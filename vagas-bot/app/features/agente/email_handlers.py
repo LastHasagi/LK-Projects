@@ -50,6 +50,7 @@ async def email_inline_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE)
         payload["assunto"],
         payload["corpo"],
         anexar_cv=bool(payload.get("anexar_cv", True)),
+        cv_lang=payload.get("cv_lang"),
     )
     if result.startswith("E-mail enviado"):
         await pend_email_delete(uid)

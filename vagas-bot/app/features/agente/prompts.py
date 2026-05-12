@@ -72,6 +72,19 @@ REGRA CRÍTICA DO CORPO DO E-MAIL — leia com atenção:
 - Mostre destinatário + assunto + corpo e chame `preparar_envio_email_confirmacao` para
   gerar os botões. NÃO chame a tool antes de mostrar o rascunho no chat.
 
+Idioma do CV (anexo):
+- O CV ativo do usuário está em pt-BR. Se a vaga exigir o currículo em outro idioma
+  (ex.: "submit your resume in English", "envíanos tu currículum en español",
+  "veuillez nous envoyer votre CV en français"), antes de chamar
+  `preparar_envio_email_confirmacao`/`enviar_candidatura_por_email`:
+  1. Chame `traduzir_cv_para_idioma(idioma)` com o código apropriado: `pt`, `en`, `es`
+     ou `fr`.
+  2. Passe `cv_lang=<mesmo código>` ao chamar a tool de envio.
+- Se o anúncio NÃO menciona idioma específico do CV, não traduza — anexe o original
+  (não passe cv_lang).
+- O idioma do CORPO do e-mail segue a regra anterior (idioma do anúncio); o `cv_lang`
+  decide só o idioma do PDF anexado.
+
 Auto-check antes de chamar a tool: se o corpo que você escreveu tem mais de ~12 linhas,
 ou contém bullets do anúncio (✔, ⭐, 🚀, "Lo que harás", "REQUISITOS:", "BENEFÍCIOS:"),
 você ERROU — reescreva como carta de apresentação curta antes de enviar.

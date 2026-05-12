@@ -5,12 +5,13 @@ from telegram.ext import ContextTypes, MessageHandler, filters
 
 from app.core.db import get_session_maker
 from app.core.logging import get_logger
+from app.core.pending_question import pend_question_delete, pend_question_get
 from app.core.redis import get_redis_settings
 from app.core.telegram import admin_only
 from app.features.agente.email_handlers import extract_pending_email_uuid_from_messages
 from app.features.agente.graph import get_graph
 from app.features.candidatura.service import (
-    candidatura_pelo_pergunta_pendente,
+    get_candidatura,
     retomar_apos_resposta,
 )
 from app.features.respostas.service import upsert_resposta
@@ -42,15 +43,22 @@ async def conversational_handler(update: Update, _ctx: ContextTypes.DEFAULT_TYPE
     txt = msg.text.strip()
     log.info("conv_msg_received", chat_id=update.effective_chat.id, len=len(txt))
 
-    maker = get_session_maker()
-    async with maker() as session:
-        pending = await candidatura_pelo_pergunta_pendente(session)
-        if pending is not None:
-            pergunta = pending.pergunta_pendente or ""
-            await upsert_resposta(session, pergunta=pergunta, resposta=txt)
-            await retomar_apos_resposta(session, pending.id)
-            cand_id = pending.id
-    if pending is not None:
+    reply_to = msg.reply_to_message
+    cand_id: int | None = None
+    if reply_to is not None:
+        mapped = await pend_question_get(reply_to.message_id)
+        if mapped is not None:
+            maker = get_session_maker()
+            async with maker() as session:
+                pending = await get_candidatura(session, mapped)
+                if pending is not None and pending.pergunta_pendente is not None:
+                    pergunta = pending.pergunta_pendente
+                    await upsert_resposta(session, pergunta=pergunta, resposta=txt)
+                    await retomar_apos_resposta(session, pending.id)
+                    cand_id = pending.id
+            if cand_id is not None:
+                await pend_question_delete(reply_to.message_id)
+    if cand_id is not None:
         pool: ArqRedis = await create_pool(get_redis_settings())
         try:
             await pool.enqueue_job("apply_job", cand_id)

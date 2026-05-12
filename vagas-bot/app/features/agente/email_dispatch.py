@@ -5,6 +5,10 @@ from app.core.db import get_session_maker
 from app.core.email_text import extract_emails
 from app.core.smtp_send import send_smtp_email
 from app.features.cv.service import get_active_cv
+from app.features.cv.translation import (
+    CVTranslationError,
+    get_or_create_translated_cv,
+)
 
 _MAX_EMAIL_BODY_CHARS = 50_000
 
@@ -15,6 +19,7 @@ async def dispatch_application_email(
     corpo: str,
     *,
     anexar_cv: bool,
+    cv_lang: str | None = None,
 ) -> str:
     """Valida e envia e-mail de candidatura via SMTP. Retorna mensagem de sucesso ou erro."""
     settings = get_settings()
@@ -37,9 +42,19 @@ async def dispatch_application_email(
         maker = get_session_maker()
         async with maker() as session:
             cv = await get_active_cv(session)
-        if cv is None:
-            return "Não há CV ativo. Envie um PDF e aguarde indexação antes de anexar."
-        attachment_path = cv.path_pdf
+            if cv is None:
+                return (
+                    "Não há CV ativo. Envie um PDF e aguarde indexação antes de anexar."
+                )
+            attachment_path = cv.path_pdf
+            if cv_lang:
+                try:
+                    translation = await get_or_create_translated_cv(
+                        session, cv_id=cv.id, target_lang=cv_lang
+                    )
+                    attachment_path = translation.pdf_path
+                except CVTranslationError as e:
+                    return f"Falha ao preparar CV em {cv_lang}: {e!s}"
 
     def _send() -> None:
         send_smtp_email(

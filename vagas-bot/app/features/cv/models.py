@@ -1,7 +1,16 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -36,3 +45,22 @@ class CVChunk(Base):
     embedding = mapped_column(Vector(EMBED_DIMS), nullable=False)
 
     cv: Mapped["CV"] = relationship(back_populates="chunks")
+
+
+class CVTranslation(Base):
+    __tablename__ = "cv_translation"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cv_id: Mapped[int] = mapped_column(
+        ForeignKey("cv.id", ondelete="CASCADE"), nullable=False
+    )
+    lang: Mapped[str] = mapped_column(String(8), nullable=False)
+    markdown_text: Mapped[str] = mapped_column(Text, nullable=False)
+    pdf_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    criada_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("cv_id", "lang", name="uq_cv_translation_cv_lang"),
+    )
