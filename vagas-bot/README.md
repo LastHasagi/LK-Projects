@@ -12,7 +12,8 @@ Single-user. Roda em Docker. Persistência em Postgres com pgvector. Fila Redis.
 - **Link drop** — você cola uma URL Gupy no chat e o bot baixa os detalhes, pontua e devolve um card.
 - **Matching com RAG** — cada vaga é comparada por similaridade semântica contra chunks do seu CV (top-K via cosine); LLM gera score 0–100 com citações literais do CV.
 - **Auto-candidatura com human-in-the-loop** — você clica `✅ Candidatar`; worker abre a vaga com sessão Gupy persistida, preenche campos cujas respostas já existem na memória semântica, e te pergunta no chat quando bate em campo novo. Você responde uma vez, e da próxima ele já sabe.
-- **Agente conversacional** — texto livre no chat entra num `StateGraph` LangGraph com tools: `buscar_vagas_semantica`, `explicar_fit`, `listar_candidaturas_em_andamento`, `iniciar_busca_vagas`. Memória persistente por `chat_id` via `AsyncPostgresSaver`.
+- **Agente conversacional** — texto livre no chat entra num `StateGraph` LangGraph com tools: `buscar_vagas_semantica`, `explicar_fit`, `listar_candidaturas_em_andamento`, `iniciar_busca_vagas`, `extrair_emails_do_texto`, `enviar_candidatura_por_email`. Memória persistente por `chat_id` via `AsyncPostgresSaver`.
+- **Candidatura por e-mail** — você cola um post (LinkedIn etc.) ou um e-mail; o agente extrai contatos, **redige assunto e corpo** a partir do anúncio quando o escopo já está no texto, mostra o rascunho e, após sua confirmação, envia pelo SMTP com anexo do CV ativo (PDF).
 - **`/admin`** — painel inline com métricas, health, logs recentes e controles (pause/resume scrape, forçar busca, limpar fila).
 
 ---
@@ -169,6 +170,7 @@ Preencha no `.env`:
   ```bash
   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
   ```
+- Opcional — candidatura por e-mail (Gmail: 2FA + senha de app): `SMTP_USER`, `SMTP_PASSWORD`; opcionais `SMTP_HOST` (padrão `smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_FROM_NAME`.
 
 Sobe:
 

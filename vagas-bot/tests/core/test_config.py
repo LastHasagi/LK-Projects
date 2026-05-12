@@ -26,6 +26,9 @@ def test_settings_loads_required_fields(monkeypatch):
     assert s.database_url == "postgresql+asyncpg://u:p@h/db"
     assert s.log_level == "INFO"  # default
     assert s.env == "dev"  # default
+    assert s.smtp_user is None
+    assert s.smtp_host == "smtp.gmail.com"
+    assert s.smtp_port == 587
 
 
 def test_settings_missing_required_raises(monkeypatch):

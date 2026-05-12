@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     env: Literal["dev", "prod"] = "dev"
     daily_apply_limit: int = 20
+    # SMTP opcional (ex.: Gmail + senha de app) para candidatura por e-mail
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from_name: str | None = None
 
 
 @lru_cache(maxsize=1)
