@@ -1,4 +1,3 @@
-import asyncio
 import json
 
 from arq.connections import ArqRedis, create_pool
@@ -8,11 +7,11 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.core.db import get_session_maker
 from app.core.email_text import extract_emails
+from app.core.pending_email import EMAIL_CONFIRM_PENDING_PREFIX, pend_email_save
 from app.core.rag.embeddings import embed_texts
 from app.core.redis import get_redis_settings
-from app.core.smtp_send import send_smtp_email
+from app.features.agente.email_dispatch import dispatch_application_email
 from app.features.candidatura.service import listar_em_andamento
-from app.features.cv.service import get_active_cv
 from app.features.descoberta.models import Vaga
 from app.features.filtros.service import listar_filtros
 from app.features.matching.models import MatchResult
@@ -111,15 +110,14 @@ def extrair_emails_do_texto(texto: str) -> str:
 
 
 @tool
-async def enviar_candidatura_por_email(
+async def preparar_envio_email_confirmacao(
     destinatario: str,
     assunto: str,
     corpo: str,
     anexar_cv: bool = True,
 ) -> str:
-    """Envia e-mail de candidatura via SMTP (ex.: Gmail), com PDF do CV ativo se pedido.
-    Só chame depois de mostrar rascunho e o usuário confirmar envio (ex.: sim, pode enviar).
-    Corpo alinhado à vaga, sem inventar experiências."""
+    """Registra o rascunho final; o Telegram mostra botões Enviar/Cancelar.
+    Chame quando o texto do e-mail estiver pronto. O SMTP dispara ao clicar em Enviar."""
     settings = get_settings()
     if not settings.smtp_user or not settings.smtp_password:
         return (
@@ -132,39 +130,31 @@ async def enviar_candidatura_por_email(
             "Informe exatamente um e-mail de destino "
             "(ou use extrair_emails_do_texto e peça qual usar)."
         )
-    to_addr = found[0]
     if len(corpo) > _MAX_EMAIL_BODY_CHARS:
         return f"Corpo muito longo (máx. {_MAX_EMAIL_BODY_CHARS} caracteres)."
-    attachment_path: str | None = None
-    if anexar_cv:
-        maker = get_session_maker()
-        async with maker() as session:
-            cv = await get_active_cv(session)
-        if cv is None:
-            return "Não há CV ativo. Envie um PDF e aguarde indexação antes de anexar."
-        attachment_path = cv.path_pdf
+    uid = await pend_email_save(
+        {
+            "destinatario": found[0],
+            "assunto": assunto.strip()[:998],
+            "corpo": corpo,
+            "anexar_cv": anexar_cv,
+        }
+    )
+    return f"{EMAIL_CONFIRM_PENDING_PREFIX}{uid}"
 
-    def _send() -> None:
-        send_smtp_email(
-            host=settings.smtp_host,
-            port=settings.smtp_port,
-            username=settings.smtp_user,
-            password=settings.smtp_password,
-            from_name=settings.smtp_from_name,
-            to_addr=to_addr,
-            subject=assunto.strip()[:998],
-            body_plain=corpo,
-            attachment_path=attachment_path if anexar_cv else None,
-        )
 
-    try:
-        await asyncio.to_thread(_send)
-    except FileNotFoundError:
-        return "Arquivo do CV ativo não encontrado no disco. Reenvie o PDF."
-    except Exception as e:
-        return f"Falha ao enviar e-mail: {e!s}"
-
-    return f"E-mail enviado com sucesso para {to_addr}."
+@tool
+async def enviar_candidatura_por_email(
+    destinatario: str,
+    assunto: str,
+    corpo: str,
+    anexar_cv: bool = True,
+) -> str:
+    """Envia e-mail na hora, sem botões. Use se o usuário confirmar só por texto.
+    Fluxo normal: preferir `preparar_envio_email_confirmacao` após o rascunho."""
+    return await dispatch_application_email(
+        destinatario, assunto, corpo, anexar_cv=anexar_cv
+    )
 
 
 AGENT_TOOLS = [
@@ -173,5 +163,6 @@ AGENT_TOOLS = [
     listar_candidaturas_em_andamento,
     iniciar_busca_vagas,
     extrair_emails_do_texto,
+    preparar_envio_email_confirmacao,
     enviar_candidatura_por_email,
 ]

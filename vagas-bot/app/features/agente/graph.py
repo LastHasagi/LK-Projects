@@ -19,7 +19,7 @@ def _pg_dsn() -> str:
 
 
 async def _agent_node(state: MessagesState):
-    llm = get_llm("FAST").bind_tools(AGENT_TOOLS)
+    llm = get_llm("SMART").bind_tools(AGENT_TOOLS)
     msgs = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
     resp = await llm.ainvoke(msgs)
     return {"messages": [resp]}
