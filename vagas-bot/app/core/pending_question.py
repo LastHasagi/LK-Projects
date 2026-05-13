@@ -1,6 +1,7 @@
 from app.core.redis import get_redis
 
 _PREFIX = "vagas:pending_question:"
+_CTX_PREFIX = "vagas:pending_question_ctx:"
 _TTL_SEC = 24 * 60 * 60
 
 
@@ -25,3 +26,21 @@ async def pend_question_get(message_id: int) -> int | None:
 async def pend_question_delete(message_id: int) -> None:
     r = get_redis()
     await r.delete(_PREFIX + str(message_id))
+
+
+async def pend_ctx_save(candidatura_id: int, extra: str) -> None:
+    r = get_redis()
+    await r.setex(_CTX_PREFIX + str(candidatura_id), _TTL_SEC, extra)
+
+
+async def pend_ctx_get(candidatura_id: int) -> str | None:
+    r = get_redis()
+    raw = await r.get(_CTX_PREFIX + str(candidatura_id))
+    if raw is None:
+        return None
+    return raw.decode() if isinstance(raw, bytes) else str(raw)
+
+
+async def pend_ctx_delete(candidatura_id: int) -> None:
+    r = get_redis()
+    await r.delete(_CTX_PREFIX + str(candidatura_id))

@@ -1,7 +1,11 @@
+import hashlib
 import json
+from typing import Annotated
 
 from arq.connections import ArqRedis, create_pool
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedStore
+from langgraph.store.base import BaseStore
 from sqlalchemy import select
 
 from app.core.config import get_settings
@@ -11,6 +15,11 @@ from app.core.pending_email import EMAIL_CONFIRM_PENDING_PREFIX, pend_email_save
 from app.core.rag.embeddings import embed_texts
 from app.core.redis import get_redis_settings
 from app.features.agente.email_dispatch import dispatch_application_email
+from app.features.agente.long_term_memory import (
+    ALLOWED_CATEGORIES,
+    put_fact,
+    search_facts,
+)
 from app.features.candidatura.service import listar_em_andamento
 from app.features.cv.service import get_active_cv
 from app.features.cv.translation import (
@@ -204,6 +213,50 @@ async def traduzir_cv_para_idioma(idioma: str) -> str:
     )
 
 
+@tool
+async def salvar_fato_usuario(
+    fato: str,
+    categoria: str,
+    store: Annotated[BaseStore, InjectedStore()],
+) -> str:
+    """Salva um fato duradouro do usuário em memória de longo prazo.
+    Use SOMENTE para dados estáveis que servem em várias conversas/candidaturas:
+    - categoria='candidato': nome completo, idade, localização, contato, linkedin,
+      restrições de visto, idiomas.
+    - categoria='compensacao_disponibilidade': pretensão salarial (faixa),
+      modalidade preferida (remoto/híbrido/presencial), disponibilidade de início,
+      preferência de regime (CLT/PJ).
+    Não salve aqui: dúvidas pontuais sobre uma vaga, mensagens fugazes, lixo de
+    conversa. Substitui fato anterior se a chave (hash do fato) bater."""
+    if categoria not in ALLOWED_CATEGORIES:
+        return (
+            f"Categoria inválida: {categoria}. Use uma de: "
+            f"{', '.join(ALLOWED_CATEGORIES)}."
+        )
+    fato = fato.strip()
+    if not fato:
+        return "Fato vazio; nada a salvar."
+    key = hashlib.sha1(fato.encode("utf-8")).hexdigest()[:16]
+    await put_fact(store, key=key, fato=fato, categoria=categoria)
+    return f"Fato salvo ({categoria}): {fato[:120]}"
+
+
+@tool
+async def buscar_fatos_relevantes(
+    query: str,
+    store: Annotated[BaseStore, InjectedStore()],
+    k: int = 5,
+) -> str:
+    """Busca semanticamente fatos persistidos do usuário. Use antes de redigir
+    e-mail de candidatura, responder pergunta de cadastro de vaga, ou quando o
+    usuário fizer referência a algo que ele já tenha contado em outra conversa
+    (nome, pretensão, localização etc.). Devolve até k fatos como JSON."""
+    if not query.strip():
+        return "[]"
+    hits = await search_facts(store, query=query, k=k)
+    return json.dumps(hits, ensure_ascii=False)
+
+
 AGENT_TOOLS = [
     buscar_vagas_semantica,
     explicar_fit,
@@ -213,4 +266,6 @@ AGENT_TOOLS = [
     preparar_envio_email_confirmacao,
     enviar_candidatura_por_email,
     traduzir_cv_para_idioma,
+    salvar_fato_usuario,
+    buscar_fatos_relevantes,
 ]

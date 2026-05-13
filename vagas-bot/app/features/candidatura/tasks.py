@@ -13,6 +13,7 @@ from app.browser.flows.apply import (
 from app.core.config import get_settings
 from app.core.db import get_session_maker
 from app.core.logging import get_logger
+from app.core.pending_question import pend_ctx_delete, pend_ctx_save
 from app.core.redis import get_redis_settings
 from app.features.candidatura.models import CandidaturaStatus
 from app.features.candidatura.service import (
@@ -117,6 +118,10 @@ async def apply_job(ctx: dict, candidatura_id: int) -> str:
                 field_id=result.field_id,
                 screenshot=result.screenshot_path,
             )
+            if result.prompt_extra:
+                await pend_ctx_save(candidatura_id, result.prompt_extra)
+            else:
+                await pend_ctx_delete(candidatura_id)
             log.info(
                 "apply_paused_on_question",
                 candidatura_id=candidatura_id,

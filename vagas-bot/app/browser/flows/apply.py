@@ -71,6 +71,7 @@ class PendingQuestion:
     field_id: str
     pergunta: str
     screenshot_path: str
+    prompt_extra: str | None = None
 
 
 async def _click_button_with_text(page: Page, text: str, timeout: int = 1500) -> bool:
@@ -158,16 +159,29 @@ async def _field_label(field) -> str:
         e => {
             if (e.id) {
                 const lbl = document.querySelector(`label[for='${e.id}']`);
-                if (lbl) return lbl.innerText.trim();
+                if (lbl) {
+                    const t = lbl.innerText.trim();
+                    if (t) return t;
+                }
             }
             const parent = e.closest('label');
-            if (parent) return parent.innerText.trim();
+            if (parent) {
+                const t = parent.innerText.trim();
+                if (t) return t;
+            }
             const aria = e.getAttribute('aria-label');
-            if (aria) return aria.trim();
+            if (aria && aria.trim()) return aria.trim();
+            let node = e.parentElement;
+            for (let i = 0; i < 6 && node; i++) {
+                const prev = node.previousElementSibling;
+                if (prev) {
+                    const t = (prev.innerText || '').trim();
+                    if (t && t.length > 3 && t.length < 300) return t;
+                }
+                node = node.parentElement;
+            }
             const ph = e.getAttribute('placeholder');
-            if (ph) return ph.trim();
-            const prev = e.previousElementSibling;
-            if (prev && prev.tagName === 'LABEL') return prev.innerText.trim();
+            if (ph && ph.trim()) return ph.trim();
             return '';
         }
     """)
@@ -210,6 +224,77 @@ async def _fill_field(field, value: str) -> None:
             await field.select_option(value=value)
     else:
         await field.fill(value)
+
+
+async def _radio_group_options(page: Page, name: str) -> list[str]:
+    raw = await page.evaluate(
+        """
+        (name) => {
+            const out = [];
+            document.querySelectorAll(`input[type='radio'][name='${name}']:not([disabled])`).forEach(e => {
+                let label = '';
+                if (e.id) {
+                    const lbl = document.querySelector(`label[for='${e.id}']`);
+                    if (lbl) label = lbl.innerText.trim();
+                }
+                if (!label) {
+                    const parent = e.closest('label');
+                    if (parent) label = parent.innerText.trim();
+                }
+                if (!label) label = (e.value || '').trim();
+                if (label) out.push(label);
+            });
+            return out;
+        }
+        """,
+        name,
+    )
+    return [str(x) for x in (raw or []) if str(x).strip()]
+
+
+async def _find_required_empty_text(page: Page) -> list[dict]:
+    return await page.evaluate(
+        """
+        () => {
+            const out = [];
+            const SEL = 'input:not([disabled]):not([type="radio"]):not([type="checkbox"]):not([type="file"]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled])';
+            document.querySelectorAll(SEL).forEach(e => {
+                if (e.offsetParent === null) return;
+                const val = (e.value || '').toString().trim();
+                if (val) return;
+                const required = e.required || e.getAttribute('aria-required') === 'true';
+                let hasErr = false;
+                let n = e.parentElement;
+                for (let i = 0; i < 4 && n; i++) {
+                    const txt = (n.innerText || '').toLowerCase();
+                    if (txt.includes('campo obrigat') || txt.includes('obrigatório') || txt.includes('required')) {
+                        hasErr = true; break;
+                    }
+                    n = n.parentElement;
+                }
+                if (!required && !hasErr) return;
+                let label = '';
+                if (e.id) {
+                    const lbl = document.querySelector(`label[for='${e.id}']`);
+                    if (lbl) label = lbl.innerText.trim();
+                }
+                if (!label) {
+                    let node = e.parentElement;
+                    for (let i = 0; i < 6 && node; i++) {
+                        const prev = node.previousElementSibling;
+                        if (prev) {
+                            const t = (prev.innerText || '').trim();
+                            if (t && t.length > 3 && t.length < 300) { label = t; break; }
+                        }
+                        node = node.parentElement;
+                    }
+                }
+                out.push({ name: e.name || e.id || '', label: label });
+            });
+            return out;
+        }
+        """
+    )
 
 
 async def _handle_radio_group(page: Page, name: str, answer: str) -> bool:
@@ -370,6 +455,24 @@ async def apply_to_vaga(
                         "radio_option_not_matched",
                         pergunta=pergunta, resposta=resposta, name=name,
                     )
+                    options = await _radio_group_options(page, name)
+                    options_str = (
+                        " Opções: " + " | ".join(options) if options else ""
+                    )
+                    extra = (
+                        f"(resposta sugerida '{resposta}' não bateu com nenhuma "
+                        f"opção).{options_str}"
+                    )
+                    shot = await _screenshot(
+                        page, dest_dir=screenshot_dir,
+                        prefix=f"{candidatura_id}_pending_radio_mismatch_{step}",
+                    )
+                    return PendingQuestion(
+                        field_id=name,
+                        pergunta=pergunta,
+                        screenshot_path=shot,
+                        prompt_extra=extra,
+                    )
 
             clicked = await _click_any(page, SUBMIT_TEXT_FRAGMENTS, timeout=1500)
             if clicked:
@@ -399,6 +502,21 @@ async def apply_to_vaga(
             if signature == prev_signature:
                 repeat_count += 1
                 if repeat_count >= 2:
+                    unfilled = await _find_required_empty_text(page)
+                    if unfilled:
+                        first = unfilled[0]
+                        label = (first.get("label") or "").strip() or (
+                            first.get("name") or "campo obrigatório"
+                        )
+                        shot = await _screenshot(
+                            page, dest_dir=screenshot_dir,
+                            prefix=f"{candidatura_id}_pending_required_{step}",
+                        )
+                        return PendingQuestion(
+                            field_id=first.get("name") or label[:80],
+                            pergunta=label,
+                            screenshot_path=shot,
+                        )
                     shot = await _screenshot(
                         page, dest_dir=screenshot_dir,
                         prefix=f"{candidatura_id}_stalled_{step}",

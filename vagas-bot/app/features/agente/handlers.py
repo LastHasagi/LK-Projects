@@ -5,7 +5,11 @@ from telegram.ext import ContextTypes, MessageHandler, filters
 
 from app.core.db import get_session_maker
 from app.core.logging import get_logger
-from app.core.pending_question import pend_question_delete, pend_question_get
+from app.core.pending_question import (
+    pend_ctx_delete,
+    pend_question_delete,
+    pend_question_get,
+)
 from app.core.redis import get_redis_settings
 from app.core.telegram import admin_only
 from app.features.agente.email_handlers import extract_pending_email_uuid_from_messages
@@ -58,6 +62,7 @@ async def conversational_handler(update: Update, _ctx: ContextTypes.DEFAULT_TYPE
                     cand_id = pending.id
             if cand_id is not None:
                 await pend_question_delete(reply_to.message_id)
+                await pend_ctx_delete(cand_id)
     if cand_id is not None:
         pool: ArqRedis = await create_pool(get_redis_settings())
         try:

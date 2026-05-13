@@ -30,4 +30,9 @@ def admin_only(handler: Handler) -> Handler:
 
 
 def build_application() -> Application:
-    return ApplicationBuilder().token(get_settings().telegram_bot_token).build()
+    return (
+        ApplicationBuilder()
+        .token(get_settings().telegram_bot_token)
+        .concurrent_updates(True)
+        .build()
+    )
