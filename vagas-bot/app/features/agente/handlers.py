@@ -99,16 +99,23 @@ async def conversational_handler(update: Update, _ctx: ContextTypes.DEFAULT_TYPE
                 [
                     [
                         InlineKeyboardButton(
-                            "Enviar", callback_data=f"email:send:{pending_uuid}"
-                        ),
+                            "✅ Aprovar e enviar",
+                            callback_data=f"email:send:{pending_uuid}",
+                        )
+                    ],
+                    [
                         InlineKeyboardButton(
-                            "Cancelar", callback_data=f"email:cancel:{pending_uuid}"
-                        ),
-                    ]
+                            "✏️ Rejeitar (revisar)",
+                            callback_data=f"email:reject:{pending_uuid}",
+                        )
+                    ],
                 ]
             )
         if pending_uuid and reply:
-            reply = f"{reply}\n\nUse os botões abaixo para Enviar ou Cancelar."
+            reply = (
+                f"{reply}\n\nAprove para enviar direto (sem custo de IA). "
+                f"Rejeite para revisar com motivo."
+            )
         await msg.reply_text(reply or "...", reply_markup=markup)
 
 

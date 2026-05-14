@@ -15,5 +15,16 @@ def get_llm(role: Role = "FAST") -> BaseChatModel:
         raise ValueError(f"Provider not supported: {provider}")
     model_name = PROVIDER_MODELS[provider][role]
     if provider == "openai":
-        return ChatOpenAI(model=model_name, api_key=settings.openai_api_key, temperature=0)
-    raise NotImplementedError(f"Provider {provider} requires langchain-{provider} install")
+        return ChatOpenAI(
+            model=model_name, api_key=settings.openai_api_key, temperature=0
+        )
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        return ChatAnthropic(
+            model=model_name,
+            api_key=settings.anthropic_api_key,
+            temperature=0,
+            max_tokens=4096,
+        )
+    raise NotImplementedError(f"Provider {provider} not supported")

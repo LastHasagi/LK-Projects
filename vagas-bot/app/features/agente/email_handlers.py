@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import ForceReply, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes
 
 from app.core.config import get_settings
@@ -9,14 +9,20 @@ from app.core.pending_email import (
     pend_email_get,
 )
 from app.features.agente.email_dispatch import dispatch_application_email
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 
 log = get_logger(__name__)
 
 
 def extract_pending_email_uuid_from_messages(messages: list) -> str | None:
-    """Se a última tool de preparação de e-mail rodou nesta volta, devolve o uuid."""
+    """Se a tool de preparação de e-mail rodou no TURNO atual, devolve o uuid.
+
+    Para detectar 'turno atual', escaneia em ordem reversa e PARA ao bater no
+    HumanMessage mais recente — sinais de turnos anteriores não são considerados.
+    """
     for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            return None
         if isinstance(m, ToolMessage):
             c = (m.content or "").strip()
             if c.startswith(EMAIL_CONFIRM_PENDING_PREFIX):
@@ -32,7 +38,7 @@ async def email_inline_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE)
         await query.answer("Não autorizado.", show_alert=True)
         return
     parts = query.data.split(":", 2)
-    if len(parts) != 3 or parts[1] not in ("send", "cancel"):
+    if len(parts) != 3 or parts[1] not in ("send", "cancel", "reject"):
         return
     action, uid = parts[1], parts[2]
     if action == "cancel":
@@ -40,6 +46,27 @@ async def email_inline_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE)
         await query.answer("Cancelado.")
         await query.edit_message_reply_markup(reply_markup=None)
         log.info("email_confirm_cancel", pending_id=uid)
+        return
+    if action == "reject":
+        await pend_email_delete(uid)
+        await query.answer("Rejeitado — me diga o motivo.")
+        await query.edit_message_reply_markup(reply_markup=None)
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        if chat_id is not None:
+            await query.get_bot().send_message(
+                chat_id=chat_id,
+                text=(
+                    "✏️ Rascunho rejeitado. *Responda esta mensagem* dizendo o "
+                    "que ajustar (tom, conteúdo, pretensão, etc.) que eu "
+                    "reformulo e te mostro o novo rascunho."
+                ),
+                parse_mode="Markdown",
+                reply_markup=ForceReply(
+                    selective=True,
+                    input_field_placeholder="O que ajustar no e-mail...",
+                ),
+            )
+        log.info("email_confirm_reject", pending_id=uid)
         return
     payload = await pend_email_get(uid)
     if payload is None:
@@ -64,5 +91,5 @@ async def email_inline_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE)
 
 email_inline_handler = CallbackQueryHandler(
     email_inline_callback,
-    pattern=r"^email:(send|cancel):[\w-]+$",
+    pattern=r"^email:(send|cancel|reject):[\w-]+$",
 )

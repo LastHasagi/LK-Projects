@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     telegram_admin_user_id: int
     llm_provider: Literal["openai", "anthropic"] = "openai"
     openai_api_key: str
+    anthropic_api_key: str | None = None
     database_url: str
     redis_url: str
     fernet_key: str

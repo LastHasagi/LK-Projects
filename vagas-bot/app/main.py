@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.telegram import build_application
 from app.features.admin.handlers import admin_callback_handler, admin_handler
+from app.features.agente.email_handlers import email_inline_handler
 from app.features.agente.graph import graph_lifespan
 from app.features.agente.handlers import conversational_message_handler
 from app.features.candidatura.handlers import (
@@ -63,6 +64,7 @@ async def main() -> None:
     application.add_handler(candidatura_cancelar_handler)
     application.add_handler(CommandHandler("admin", admin_handler))
     application.add_handler(admin_callback_handler)
+    application.add_handler(email_inline_handler)
     application.add_handler(conversational_message_handler)
 
     api_task = asyncio.create_task(_run_uvicorn(api))

@@ -5,7 +5,7 @@ from typing import Any
 from app.core.redis import get_redis
 
 _PREFIX = "vagas:pending_email:"
-_TTL_SEC = 15 * 60
+_TTL_SEC = 4 * 60 * 60
 
 EMAIL_CONFIRM_PENDING_PREFIX = "EMAIL_CONFIRM_PENDING:"
 

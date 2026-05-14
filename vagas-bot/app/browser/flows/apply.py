@@ -226,6 +226,40 @@ async def _fill_field(field, value: str) -> None:
         await field.fill(value)
 
 
+async def _radio_group_required(page: Page, name: str) -> bool:
+    return await page.evaluate(
+        """
+        (name) => {
+            const radios = document.querySelectorAll(`input[type='radio'][name='${name}']`);
+            if (radios.length === 0) return false;
+            for (const r of radios) {
+                if (r.required || r.getAttribute('aria-required') === 'true') return true;
+            }
+            const first = radios[0];
+            const fs = first.closest('fieldset');
+            if (fs) {
+                const legend = fs.querySelector('legend');
+                if (legend && /\\*/.test(legend.innerText || '')) return true;
+                if ((fs.innerText || '').toLowerCase().includes('campo obrigat')) return true;
+            }
+            let node = first.parentElement;
+            for (let i = 0; i < 6 && node; i++) {
+                const prev = node.previousElementSibling;
+                if (prev) {
+                    const t = (prev.innerText || '').trim();
+                    if (t && t.length < 300 && (t.includes('*') || t.toLowerCase().includes('campo obrigat'))) {
+                        return true;
+                    }
+                }
+                node = node.parentElement;
+            }
+            return false;
+        }
+        """,
+        name,
+    )
+
+
 async def _radio_group_options(page: Page, name: str) -> list[str]:
     raw = await page.evaluate(
         """
@@ -438,8 +472,16 @@ async def apply_to_vaga(
                 pergunta = await _radio_group_question(radio)
                 if not pergunta:
                     continue
+                required = await _radio_group_required(page, name)
                 resposta = await answer_lookup(pergunta)
                 if resposta is None:
+                    if not required:
+                        log.info(
+                            "radio_group_skip_optional_no_answer",
+                            pergunta=pergunta, name=name,
+                        )
+                        handled_names.add(name)
+                        continue
                     shot = await _screenshot(
                         page, dest_dir=screenshot_dir,
                         prefix=f"{candidatura_id}_pending_radio_{step}",
@@ -454,7 +496,15 @@ async def apply_to_vaga(
                     log.warning(
                         "radio_option_not_matched",
                         pergunta=pergunta, resposta=resposta, name=name,
+                        required=required,
                     )
+                    if not required:
+                        log.info(
+                            "radio_group_skip_optional_mismatch",
+                            pergunta=pergunta, name=name,
+                        )
+                        handled_names.add(name)
+                        continue
                     options = await _radio_group_options(page, name)
                     options_str = (
                         " Opções: " + " | ".join(options) if options else ""

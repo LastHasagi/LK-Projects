@@ -8,6 +8,7 @@ from langchain_core.messages import (
     SystemMessage,
     trim_messages,
 )
+from app.core.llm.models import Role
 from langchain_openai import OpenAIEmbeddings
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import START, StateGraph
@@ -18,6 +19,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from app.core.config import get_settings
 from app.core.llm.client import get_llm
 from app.core.logging import get_logger
+from app.features.agente.long_term_memory import list_all_facts
 from app.features.agente.prompts import SYSTEM_PROMPT
 from app.features.agente.tools import AGENT_TOOLS
 
@@ -88,8 +90,71 @@ def _route_after_start(state: AgentState) -> str:
     return "summarizer" if len(state["messages"]) > SUMMARY_THRESHOLD else "agent"
 
 
+_llm_with_tools_cache: dict[str, object] = {}
+
+
+def _get_llm_with_tools(role: Role):
+    cached = _llm_with_tools_cache.get(role)
+    if cached is not None:
+        return cached
+    bound = get_llm(role).bind_tools(AGENT_TOOLS)
+    _llm_with_tools_cache[role] = bound
+    return bound
+
+
+async def _facts_block() -> str:
+    store = _graph_state.get("store")
+    if store is None:
+        return ""
+    try:
+        facts = await list_all_facts(store)
+    except Exception as e:
+        log.warning("facts_fetch_failed", error=str(e))
+        return ""
+    if not facts:
+        return ""
+    lines = [
+        f"- ({f['categoria']}) {f['fato']}"
+        for f in facts
+        if f.get("fato")
+    ]
+    if not lines:
+        return ""
+    return "Fatos persistidos do usuário (use livremente — NÃO chame buscar_fatos_relevantes):\n" + "\n".join(lines)
+
+
+_SMART_KEYWORDS = (
+    "gupy.io",
+    "linkedin.com/jobs",
+    "rejeitei",
+    "reformul",
+    "ajusta",
+    "ajuste",
+    "muda o tom",
+    "muda a abordagem",
+    "rewrite",
+    "redige",
+)
+_SMART_LEN_THRESHOLD = 300
+
+
+def _select_role(messages: list[BaseMessage]) -> Role:
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            raw = m.content if isinstance(m.content, str) else str(m.content)
+            text = raw.strip()
+            if len(text) >= _SMART_LEN_THRESHOLD:
+                return "SMART"
+            lower = text.lower()
+            if any(kw in lower for kw in _SMART_KEYWORDS):
+                return "SMART"
+            return "FAST"
+    return "FAST"
+
+
 async def _agent_node(state: AgentState) -> dict:
-    llm = get_llm("SMART").bind_tools(AGENT_TOOLS)
+    role: Role = _select_role(state["messages"])
+    llm = _get_llm_with_tools(role)
     history = trim_messages(
         state["messages"],
         max_tokens=TRIM_MAX_TOKENS,
@@ -102,11 +167,23 @@ async def _agent_node(state: AgentState) -> dict:
     )
     system_msgs: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
     summary = state.get("summary")
+    extra_context_parts: list[str] = []
     if summary:
-        system_msgs.append(
-            SystemMessage(content=f"Resumo da conversa anterior:\n{summary}")
-        )
+        extra_context_parts.append(f"Resumo da conversa anterior:\n{summary}")
+    facts_block = await _facts_block()
+    if facts_block:
+        extra_context_parts.append(facts_block)
+    if extra_context_parts:
+        system_msgs.append(SystemMessage(content="\n\n".join(extra_context_parts)))
     resp = await llm.ainvoke([*system_msgs, *history])
+    log.info(
+        "agent_step",
+        role=role,
+        history_len=len(history),
+        has_summary=bool(summary),
+        tool_calls=[tc.get("name") for tc in (getattr(resp, "tool_calls", []) or [])],
+        text_len=len(resp.content) if isinstance(resp.content, str) else -1,
+    )
     return {"messages": [resp]}
 
 
@@ -145,10 +222,13 @@ async def graph_lifespan():
         _graph_state["graph"] = _build_graph_unchecked().compile(
             checkpointer=saver, store=store
         )
+        _graph_state["store"] = store
         try:
             yield
         finally:
             _graph_state.pop("graph", None)
+            _graph_state.pop("store", None)
+            _llm_with_tools_cache.clear()
 
 
 def get_graph():

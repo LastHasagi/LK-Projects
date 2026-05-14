@@ -20,7 +20,7 @@ from app.features.agente.long_term_memory import (
     put_fact,
     search_facts,
 )
-from app.features.candidatura.service import listar_em_andamento
+from app.features.candidatura.service import criar_candidatura, listar_em_andamento
 from app.features.cv.service import get_active_cv
 from app.features.cv.translation import (
     SUPPORTED_LANGS,
@@ -184,6 +184,32 @@ async def enviar_candidatura_por_email(
 
 
 @tool
+async def candidatar_a_vaga(vaga_id: int) -> str:
+    """Dispara a candidatura automatizada (Camoufox + Playwright) para uma vaga
+    JÁ indexada (vinda de `buscar_vagas_semantica` ou descoberta). Use quando o
+    usuário pedir para se candidatar a uma vaga com link Gupy, ou explicitamente
+    referir-se a uma vaga pelo id. NÃO use para vagas que dependem de e-mail —
+    para essas, use `preparar_envio_email_confirmacao`."""
+    maker = get_session_maker()
+    async with maker() as session:
+        vaga = await session.get(Vaga, vaga_id)
+        if vaga is None:
+            return f"Vaga id={vaga_id} não existe no índice."
+        cand = await criar_candidatura(session, vaga_id=vaga_id)
+    pool: ArqRedis = await create_pool(get_redis_settings())
+    try:
+        await pool.enqueue_job("apply_job", cand.id)
+    finally:
+        await pool.close()
+    return (
+        f"Candidatura #{cand.id} enfileirada para a vaga '{vaga.titulo}' "
+        f"({vaga.empresa or 'empresa desconhecida'}). O worker vai abrir a vaga "
+        f"no Gupy, preencher os campos com respostas em memória e te perguntar "
+        f"se aparecer algo novo."
+    )
+
+
+@tool
 async def traduzir_cv_para_idioma(idioma: str) -> str:
     """Traduz o CV ativo para o idioma alvo e prepara o PDF para anexo.
     Use quando a vaga exigir CV em idioma diferente do português
@@ -265,7 +291,7 @@ AGENT_TOOLS = [
     extrair_emails_do_texto,
     preparar_envio_email_confirmacao,
     enviar_candidatura_por_email,
+    candidatar_a_vaga,
     traduzir_cv_para_idioma,
     salvar_fato_usuario,
-    buscar_fatos_relevantes,
 ]
