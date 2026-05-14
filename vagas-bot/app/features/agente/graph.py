@@ -176,6 +176,7 @@ async def _agent_node(state: AgentState) -> dict:
     if extra_context_parts:
         system_msgs.append(SystemMessage(content="\n\n".join(extra_context_parts)))
     resp = await llm.ainvoke([*system_msgs, *history])
+    usage = getattr(resp, "usage_metadata", None) or {}
     log.info(
         "agent_step",
         role=role,
@@ -183,6 +184,9 @@ async def _agent_node(state: AgentState) -> dict:
         has_summary=bool(summary),
         tool_calls=[tc.get("name") for tc in (getattr(resp, "tool_calls", []) or [])],
         text_len=len(resp.content) if isinstance(resp.content, str) else -1,
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        total_tokens=usage.get("total_tokens"),
     )
     return {"messages": [resp]}
 

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from typing import Annotated
 
 from arq.connections import ArqRedis, create_pool
@@ -70,10 +71,12 @@ async def explicar_fit(vaga_id: int) -> str:
         ).scalar_one_or_none()
     if mr is None:
         return f"Sem MatchResult para vaga #{vaga_id}."
+    justificativa = (mr.justificativa or "")[:600]
+    citacoes = (mr.citacoes or [])[:3]
     return (
         f"Score {mr.score}/100\n"
-        f"Justificativa: {mr.justificativa}\n"
-        f"Citações: {json.dumps(mr.citacoes, ensure_ascii=False)}"
+        f"Justificativa: {justificativa}\n"
+        f"Citações: {json.dumps(citacoes, ensure_ascii=False)}"
     )
 
 
@@ -239,6 +242,35 @@ async def traduzir_cv_para_idioma(idioma: str) -> str:
     )
 
 
+_REGIME_RE = re.compile(r"\b(clt|pj|mei|pessoa\s+jur[ií]dica)\b", re.IGNORECASE)
+_CURRENCY_RE = re.compile(r"(r\$|brl|reais)|(\d{1,3}[.,]?\d{0,3})", re.IGNORECASE)
+
+
+def _validate_fato(fato: str, categoria: str) -> str | None:
+    """Retorna mensagem de erro se inválido; None se ok."""
+    if fato.count("R$") > 1 or len(_REGIME_RE.findall(fato)) > 1:
+        return (
+            "Fato composto detectado (múltiplos valores ou regimes na mesma "
+            "string). Divida em fatos atômicos: salve UM fato por chamada."
+        )
+    if categoria == "compensacao_disponibilidade":
+        has_money = bool(_CURRENCY_RE.search(fato))
+        has_regime = bool(_REGIME_RE.search(fato))
+        is_modalidade = any(
+            w in fato.lower() for w in ("remoto", "híbrido", "hibrido", "presencial")
+        )
+        is_disponibilidade = any(
+            w in fato.lower()
+            for w in ("disponível", "disponibilidade", "dias", "imediato")
+        )
+        if not (has_money or has_regime or is_modalidade or is_disponibilidade):
+            return (
+                "Fato em 'compensacao_disponibilidade' deve conter valor, regime, "
+                "modalidade ou disponibilidade. Use frase explícita."
+            )
+    return None
+
+
 @tool
 async def salvar_fato_usuario(
     fato: str,
@@ -246,14 +278,18 @@ async def salvar_fato_usuario(
     store: Annotated[BaseStore, InjectedStore()],
 ) -> str:
     """Salva um fato duradouro do usuário em memória de longo prazo.
-    Use SOMENTE para dados estáveis que servem em várias conversas/candidaturas:
-    - categoria='candidato': nome completo, idade, localização, contato, linkedin,
-      restrições de visto, idiomas.
-    - categoria='compensacao_disponibilidade': pretensão salarial (faixa),
-      modalidade preferida (remoto/híbrido/presencial), disponibilidade de início,
-      preferência de regime (CLT/PJ).
-    Não salve aqui: dúvidas pontuais sobre uma vaga, mensagens fugazes, lixo de
-    conversa. Substitui fato anterior se a chave (hash do fato) bater."""
+
+    REGRA: antes de chamar, MOSTRE ao usuário no chat o que vai salvar e PEÇA
+    confirmação ("vou salvar 'X' como padrão, ok?"). Só chame após "sim/ok".
+
+    Categorias permitidas:
+    - `candidato`: nome completo, idade, localização, contato, linkedin,
+      restrições de visto, idiomas. Um fato atômico por chamada.
+    - `compensacao_disponibilidade`: UM valor de pretensão (com regime), OU
+      modalidade preferida, OU disponibilidade. Nunca composto.
+
+    Nunca salve: dúvidas pontuais, mensagens fugazes, lixo de conversa.
+    Nunca salve fato COMPOSTO (ex.: 'R$13k CLT e R$17k PJ') — quebra em dois."""
     if categoria not in ALLOWED_CATEGORIES:
         return (
             f"Categoria inválida: {categoria}. Use uma de: "
@@ -262,6 +298,9 @@ async def salvar_fato_usuario(
     fato = fato.strip()
     if not fato:
         return "Fato vazio; nada a salvar."
+    err = _validate_fato(fato, categoria)
+    if err is not None:
+        return f"Rejeitado: {err}"
     key = hashlib.sha1(fato.encode("utf-8")).hexdigest()[:16]
     await put_fact(store, key=key, fato=fato, categoria=categoria)
     return f"Fato salvo ({categoria}): {fato[:120]}"
@@ -290,7 +329,6 @@ AGENT_TOOLS = [
     iniciar_busca_vagas,
     extrair_emails_do_texto,
     preparar_envio_email_confirmacao,
-    enviar_candidatura_por_email,
     candidatar_a_vaga,
     traduzir_cv_para_idioma,
     salvar_fato_usuario,

@@ -11,7 +11,6 @@ class Settings(BaseSettings):
     telegram_admin_user_id: int
     llm_provider: Literal["openai", "anthropic"] = "openai"
     openai_api_key: str
-    anthropic_api_key: str | None = None
     database_url: str
     redis_url: str
     fernet_key: str
@@ -24,6 +23,9 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from_name: str | None = None
+    langchain_tracing_v2: bool = False
+    langchain_api_key: str | None = None
+    langchain_project: str = "vagas-bot"
 
 
 @lru_cache(maxsize=1)

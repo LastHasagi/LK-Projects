@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes, MessageHandler, filters
 
 from app.core.db import get_session_maker
 from app.core.logging import get_logger
+from app.core.pending_email import pend_email_get
 from app.core.pending_question import (
     pend_ctx_delete,
     pend_question_delete,
@@ -75,6 +76,11 @@ async def conversational_handler(update: Update, _ctx: ContextTypes.DEFAULT_TYPE
 
     graph = get_graph()
     config = {"configurable": {"thread_id": str(update.effective_chat.id)}}
+    placeholder = None
+    try:
+        placeholder = await msg.reply_text("✍️ pensando…")
+    except Exception:
+        placeholder = None
     try:
         result = await graph.ainvoke(
             {"messages": [HumanMessage(content=txt)]},
@@ -86,37 +92,55 @@ async def conversational_handler(update: Update, _ctx: ContextTypes.DEFAULT_TYPE
         pending_uuid = extract_pending_email_uuid_from_messages(messages)
     except Exception as e:
         log.error("agent_failed", error=str(e))
+        if placeholder is not None:
+            try:
+                await placeholder.delete()
+            except Exception:
+                pass
         await msg.reply_text(f"Falhei no agente: {e}")
         return
+    if placeholder is not None:
+        try:
+            await placeholder.delete()
+        except Exception:
+            pass
 
-    if not reply and pending_uuid:
-        reply = "Confirme o envio do e-mail abaixo."
+    if pending_uuid:
+        payload = await pend_email_get(pending_uuid)
+        if payload is None:
+            log.warning("pending_email_missing_on_render", uid=pending_uuid)
+            pending_uuid = None
 
-    if reply or pending_uuid:
-        markup = None
-        if pending_uuid:
-            markup = InlineKeyboardMarkup(
+    if pending_uuid and payload is not None:
+        draft_block = (
+            "📨 *Rascunho do e-mail*\n\n"
+            f"*Destinatário:* `{payload['destinatario']}`\n"
+            f"*Assunto:* {payload['assunto']}\n\n"
+            f"*Corpo:*\n```\n{payload['corpo']}\n```\n\n"
+            "Aprove para enviar direto (sem custo de IA). "
+            "Rejeite para revisar com motivo."
+        )
+        markup = InlineKeyboardMarkup(
+            [
                 [
-                    [
-                        InlineKeyboardButton(
-                            "✅ Aprovar e enviar",
-                            callback_data=f"email:send:{pending_uuid}",
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            "✏️ Rejeitar (revisar)",
-                            callback_data=f"email:reject:{pending_uuid}",
-                        )
-                    ],
-                ]
-            )
-        if pending_uuid and reply:
-            reply = (
-                f"{reply}\n\nAprove para enviar direto (sem custo de IA). "
-                f"Rejeite para revisar com motivo."
-            )
-        await msg.reply_text(reply or "...", reply_markup=markup)
+                    InlineKeyboardButton(
+                        "✅ Aprovar e enviar",
+                        callback_data=f"email:send:{pending_uuid}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "✏️ Rejeitar (revisar)",
+                        callback_data=f"email:reject:{pending_uuid}",
+                    )
+                ],
+            ]
+        )
+        await msg.reply_text(draft_block, reply_markup=markup, parse_mode="Markdown")
+        return
+
+    if reply:
+        await msg.reply_text(reply)
 
 
 conversational_message_handler = MessageHandler(
