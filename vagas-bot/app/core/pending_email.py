@@ -27,6 +27,12 @@ async def pend_email_get(uid: str) -> dict[str, Any] | None:
     return json.loads(raw)
 
 
+async def pend_email_save_existing(uid: str, payload: dict[str, Any]) -> None:
+    """Reescreve o payload de um uid já existente (preserva TTL aproximado)."""
+    r = get_redis()
+    await r.setex(_PREFIX + uid, _TTL_SEC, json.dumps(payload, ensure_ascii=False))
+
+
 async def pend_email_delete(uid: str) -> None:
     """Remove o rascunho."""
     r = get_redis()

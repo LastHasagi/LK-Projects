@@ -16,6 +16,50 @@ class CVTranslationError(Exception):
     pass
 
 
+async def save_user_provided_translation(
+    session: AsyncSession,
+    *,
+    cv_id: int,
+    target_lang: str,
+    pdf_path: str,
+) -> CVTranslation:
+    """Registra (ou atualiza) tradução do CV fornecida pelo próprio usuário,
+    sem chamar LLM. Apenas extrai o texto do PDF e grava como markdown."""
+    if target_lang not in SUPPORTED_LANGS:
+        raise CVTranslationError(
+            f"Idioma não suportado: {target_lang}. Use {', '.join(SUPPORTED_LANGS)}."
+        )
+    try:
+        text = parse_pdf(pdf_path)
+    except Exception as e:
+        raise CVTranslationError(f"Falha ao ler PDF: {e!s}") from e
+    if not text.strip():
+        raise CVTranslationError("PDF sem texto extraível.")
+
+    existing = (
+        await session.execute(
+            select(CVTranslation).where(
+                CVTranslation.cv_id == cv_id, CVTranslation.lang == target_lang
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        row = CVTranslation(
+            cv_id=cv_id,
+            lang=target_lang,
+            markdown_text=text,
+            pdf_path=pdf_path,
+        )
+        session.add(row)
+    else:
+        existing.markdown_text = text
+        existing.pdf_path = pdf_path
+        row = existing
+    await session.commit()
+    await session.refresh(row)
+    return row
+
+
 async def get_or_create_translated_cv(
     session: AsyncSession, *, cv_id: int, target_lang: str
 ) -> CVTranslation:

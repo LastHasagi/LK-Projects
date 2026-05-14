@@ -20,7 +20,12 @@ from app.features.candidatura.handlers import (
     vaga_candidatar_handler,
     vagas_command,
 )
-from app.features.cv.handlers import cv_status_handler, upload_cv_handler
+from app.features.cv.handlers import (
+    cv_status_handler,
+    cv_upload_callback_handler,
+    upload_cv_handler,
+)
+from app.features.email_submission.handlers import vagas_email_command
 from app.features.descoberta.handlers import (
     insta_search_handler,
     link_drop_message_handler,
@@ -95,6 +100,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("respostas", respostas_handler))
     application.add_handler(respostas_del_handler)
     application.add_handler(MessageHandler(filters.Document.PDF, upload_cv_handler))
+    application.add_handler(cv_upload_callback_handler)
     application.add_handler(CommandHandler("filtros", filtros_handler))
     application.add_handler(filtros_add_conversation)
     application.add_handler(filtros_off_handler)
@@ -107,6 +113,7 @@ async def main() -> None:
     application.add_handler(CommandHandler("admin", admin_handler))
     application.add_handler(admin_callback_handler)
     application.add_handler(reset_thread_command)
+    application.add_handler(vagas_email_command)
     application.add_handler(email_inline_handler)
     application.add_handler(photo_message_handler_instance)
     application.add_handler(conversational_message_handler)
