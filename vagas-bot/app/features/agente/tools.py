@@ -29,7 +29,13 @@ from app.features.cv.translation import (
     get_or_create_translated_cv,
 )
 from app.features.descoberta.models import Vaga
-from app.features.filtros.service import listar_filtros
+from app.features.filtros.models import Filtro
+from app.features.filtros.service import (
+    atualizar_filtro,
+    criar_filtro,
+    desativar_filtro,
+    listar_filtros,
+)
 from app.features.matching.models import MatchResult
 
 
@@ -322,6 +328,177 @@ async def buscar_fatos_relevantes(
     return json.dumps(hits, ensure_ascii=False)
 
 
+_MODALIDADES_VALIDAS = {"remoto", "presencial", "hibrido", "híbrido"}
+_NIVEIS_VALIDOS = {"junior", "júnior", "pleno", "senior", "sênior", "estagio", "estágio"}
+
+
+def _filtro_to_dict(f) -> dict:
+    return {
+        "id": f.id,
+        "nome": f.nome,
+        "query": f.query,
+        "localidade": f.localidade,
+        "modalidade": f.modalidade,
+        "nivel": f.nivel,
+        "intervalo_min": f.intervalo_min,
+        "ativo": f.ativo,
+    }
+
+
+@tool
+async def listar_filtros_busca(incluir_inativos: bool = False) -> str:
+    """Lista os filtros de busca de vagas do usuário. Use quando ele perguntar
+    "quais filtros tenho", "o que estou buscando", ou antes de sugerir mudanças.
+    Por padrão mostra só ativos; passe `incluir_inativos=True` para ver todos."""
+    maker = get_session_maker()
+    async with maker() as session:
+        filtros = await listar_filtros(
+            session, ativos=None if incluir_inativos else True
+        )
+    if not filtros:
+        return "Nenhum filtro cadastrado."
+    return json.dumps(
+        [_filtro_to_dict(f) for f in filtros], ensure_ascii=False
+    )
+
+
+@tool
+async def criar_filtro_busca(
+    nome: str,
+    query: str,
+    localidade: str | None = None,
+    modalidade: str | None = None,
+    nivel: str | None = None,
+    intervalo_min: int = 120,
+) -> str:
+    """Cria um novo filtro de busca de vagas.
+
+    REGRA: antes de chamar, MOSTRE no chat exatamente o que vai criar (nome,
+    query, localidade, modalidade, nivel, intervalo) e PEÇA confirmação. Só
+    chame após "sim/ok".
+
+    Campos:
+    - `nome`: rótulo curto (ex.: "Backend Python remoto").
+    - `query`: termos de busca (ex.: "engenheiro de dados", "react senior").
+    - `localidade`: cidade/UF/país, opcional.
+    - `modalidade`: 'remoto', 'presencial' ou 'hibrido', opcional.
+    - `nivel`: 'junior', 'pleno', 'senior', 'estagio', opcional.
+    - `intervalo_min`: minutos entre buscas automáticas (default 120)."""
+    nome = nome.strip()
+    query = query.strip()
+    if not nome or not query:
+        return "nome e query são obrigatórios e não podem ser vazios."
+    if len(nome) > 80:
+        return "nome muito longo (máx. 80 caracteres)."
+    if len(query) > 255:
+        return "query muito longa (máx. 255 caracteres)."
+    if modalidade and modalidade.lower() not in _MODALIDADES_VALIDAS:
+        return f"modalidade inválida: {modalidade}. Use remoto, presencial ou hibrido."
+    if nivel and nivel.lower() not in _NIVEIS_VALIDOS:
+        return f"nivel inválido: {nivel}. Use junior, pleno, senior ou estagio."
+    if intervalo_min < 15:
+        return "intervalo_min mínimo é 15 (evitar rate limit)."
+    maker = get_session_maker()
+    async with maker() as session:
+        f = await criar_filtro(
+            session,
+            nome=nome,
+            query=query,
+            localidade=localidade,
+            modalidade=modalidade,
+            nivel=nivel,
+            intervalo_min=intervalo_min,
+        )
+    return f"Filtro #{f.id} criado: {json.dumps(_filtro_to_dict(f), ensure_ascii=False)}"
+
+
+@tool
+async def editar_filtro_busca(
+    filtro_id: int,
+    nome: str | None = None,
+    query: str | None = None,
+    localidade: str | None = None,
+    modalidade: str | None = None,
+    nivel: str | None = None,
+    intervalo_min: int | None = None,
+    ativo: bool | None = None,
+) -> str:
+    """Altera campos de um filtro existente. Só passe os campos que mudam.
+
+    REGRA: antes de chamar, MOSTRE o diff (campo: valor antigo → valor novo) e
+    PEÇA confirmação. Use `listar_filtros_busca` para obter o id se o usuário
+    referir o filtro por nome."""
+    if modalidade and modalidade.lower() not in _MODALIDADES_VALIDAS:
+        return f"modalidade inválida: {modalidade}."
+    if nivel and nivel.lower() not in _NIVEIS_VALIDOS:
+        return f"nivel inválido: {nivel}."
+    if intervalo_min is not None and intervalo_min < 15:
+        return "intervalo_min mínimo é 15."
+    maker = get_session_maker()
+    async with maker() as session:
+        atualizado = await atualizar_filtro(
+            session,
+            filtro_id,
+            nome=nome,
+            query=query,
+            localidade=localidade,
+            modalidade=modalidade,
+            nivel=nivel,
+            intervalo_min=intervalo_min,
+            ativo=ativo,
+        )
+    if atualizado is None:
+        return f"Filtro #{filtro_id} não encontrado."
+    return f"Filtro #{filtro_id} atualizado: {json.dumps(_filtro_to_dict(atualizado), ensure_ascii=False)}"
+
+
+@tool
+async def desativar_filtro_busca(filtro_id: int) -> str:
+    """Desativa um filtro (não apaga; pode ser reativado via `editar_filtro_busca`
+    com `ativo=True`). Use `listar_filtros_busca` para descobrir o id."""
+    maker = get_session_maker()
+    async with maker() as session:
+        f = await session.get(Filtro, filtro_id)
+        if f is None:
+            return f"Filtro #{filtro_id} não encontrado."
+        await desativar_filtro(session, filtro_id)
+    return f"Filtro #{filtro_id} ('{f.nome}') desativado."
+
+
+@tool
+async def sugerir_filtros_busca(
+    contexto: str,
+    store: Annotated[BaseStore, InjectedStore()],
+) -> str:
+    """Retorna dados para você (agente) propor filtros novos ao usuário:
+    filtros atuais + fatos salvos do usuário relevantes ao `contexto`
+    (ex.: 'engenharia de dados', 'frontend react senior').
+
+    Use ANTES de sugerir filtros: olhe o que já existe pra não duplicar, e
+    use os fatos (pretensão, modalidade, localidade) pra alinhar a sugestão.
+    Depois, MOSTRE a proposta no chat e só chame `criar_filtro_busca` após
+    "sim/ok" do usuário.
+
+    Não cria nada — é tool de leitura/raciocínio."""
+    maker = get_session_maker()
+    async with maker() as session:
+        atuais = await listar_filtros(session, ativos=None)
+    fatos = await search_facts(store, query=contexto, k=8) if contexto.strip() else []
+    payload = {
+        "filtros_atuais": [_filtro_to_dict(f) for f in atuais],
+        "fatos_relevantes": fatos,
+        "dicas": [
+            "Query genérica (ex.: 'python') traz volume; específica (ex.: "
+            "'engenheiro de dados pyspark') traz precisão.",
+            "Combine localidade + modalidade só quando o usuário tiver "
+            "preferência clara — evita filtros redundantes.",
+            "intervalo_min entre 60 e 240 cobre a maioria dos casos sem "
+            "abusar de scraping.",
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=False)
+
+
 AGENT_TOOLS = [
     buscar_vagas_semantica,
     explicar_fit,
@@ -332,4 +509,9 @@ AGENT_TOOLS = [
     candidatar_a_vaga,
     traduzir_cv_para_idioma,
     salvar_fato_usuario,
+    listar_filtros_busca,
+    criar_filtro_busca,
+    editar_filtro_busca,
+    desativar_filtro_busca,
+    sugerir_filtros_busca,
 ]

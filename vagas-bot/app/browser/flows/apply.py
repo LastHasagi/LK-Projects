@@ -50,15 +50,30 @@ SUBMIT_TEXT_FRAGMENTS = [
     "Enviar",
 ]
 
-TEXT_FIELD_SELECTOR = (
-    "input[type='text']:not([disabled]):visible, "
-    "input[type='number']:not([disabled]):visible, "
-    "input[type='email']:not([disabled]):visible, "
-    "input[type='tel']:not([disabled]):visible, "
-    "textarea:not([disabled]):visible, "
-    "select:not([disabled]):visible"
-)
 RADIO_SELECTOR = "input[type='radio']:not([disabled]):visible"
+
+_FILLABLE_INPUTS_JS = """
+() => {
+    const SEL = 'input:not([disabled]):not([type=\"radio\"]):not([type=\"checkbox\"]):not([type=\"file\"]):not([type=\"hidden\"]):not([type=\"submit\"]):not([type=\"button\"]):not([type=\"image\"]):not([type=\"reset\"]), textarea:not([disabled]), select:not([disabled])';
+    return [...document.querySelectorAll(SEL)].filter(e => e.offsetParent !== null);
+}
+"""
+
+
+async def _list_fillable_inputs(page: Page):
+    handle = await page.evaluate_handle(_FILLABLE_INPUTS_JS)
+    try:
+        props = await handle.get_properties()
+    except Exception:
+        await handle.dispose()
+        return []
+    elements = []
+    for prop in props.values():
+        el = prop.as_element()
+        if el is not None:
+            elements.append(el)
+    await handle.dispose()
+    return elements
 
 
 @dataclass
@@ -429,7 +444,7 @@ async def apply_to_vaga(
             await page.wait_for_timeout(1500)
             await _dismiss_popups(page)
 
-            text_fields = await page.query_selector_all(TEXT_FIELD_SELECTOR)
+            text_fields = await _list_fillable_inputs(page)
             radios = await page.query_selector_all(RADIO_SELECTOR)
             log.info(
                 "apply_step", candidatura_id=candidatura_id,
