@@ -10,7 +10,12 @@ from telegram.ext import ContextTypes, MessageHandler, filters
 from app.core.db import get_session_maker
 from app.core.logging import get_logger
 from app.core.email_text import extract_emails
-from app.core.pending_email import pend_email_get, pend_email_save_existing
+from app.core.pending_email import (
+    pend_email_get,
+    pend_email_save_existing,
+    revision_active,
+    revision_clear,
+)
 from app.core.pending_question import (
     pend_ctx_delete,
     pend_question_delete,
@@ -42,6 +47,16 @@ def _get_chat_lock(chat_id: int) -> asyncio.Lock:
         lock = asyncio.Lock()
         _chat_locks[chat_id] = lock
     return lock
+
+
+_DRAFT_MARKERS = ("destinatário:", "destinatario:", "assunto:")
+
+
+def _looks_like_text_draft(text: str) -> bool:
+    if not text:
+        return False
+    lowered = text.lower()
+    return sum(1 for m in _DRAFT_MARKERS if m in lowered) >= 2
 
 
 def _message_content_to_str(content: object) -> str:
@@ -130,7 +145,17 @@ async def _run_agent_turn(update: Update, msg, txt: str) -> None:
                     "NÃO gere rascunho automaticamente."
                 )
 
+    in_revision = await revision_active(chat_id)
     constraint_parts: list[str] = []
+    if in_revision:
+        constraint_parts.append(
+            "ESTADO: REVISÃO DE RASCUNHO ATIVA. O usuário rejeitou o último "
+            "rascunho de e-mail e está fornecendo o motivo / ajustes AGORA. "
+            "Você DEVE neste mesmo turno: (1) aplicar os ajustes pedidos, "
+            "(2) chamar `preparar_envio_email_confirmacao` com o NOVO "
+            "rascunho completo. NUNCA responda só com texto descrevendo o "
+            "rascunho — gere o card via tool obrigatoriamente."
+        )
     if submission_id is not None:
         constraint_parts.append(f"Submissão atual: #{submission_id}.")
     if emails_in_turn:
@@ -220,6 +245,42 @@ async def _run_agent_turn(update: Update, msg, txt: str) -> None:
     )
     pending_uuid = extract_pending_email_uuid_from_messages(messages)
 
+    if pending_uuid is None and _looks_like_text_draft(reply):
+        log.warning(
+            "draft_in_text_without_tool_call",
+            chat_id=chat_id,
+            text_len=len(reply),
+        )
+        if placeholder is not None:
+            try:
+                await placeholder.edit_text("✍️ corrigindo (rascunho via tool)…")
+            except Exception:
+                pass
+        correction = (
+            "Sua resposta anterior CONTÉM um rascunho de e-mail em texto puro, "
+            "mas você NÃO chamou `preparar_envio_email_confirmacao`. Isto é "
+            "PROIBIDO. Refaça AGORA neste turno: chame "
+            "`preparar_envio_email_confirmacao` com destinatario/assunto/corpo "
+            "EXATAMENTE como no rascunho que você acabou de escrever. Use o "
+            "mesmo destinatário detectado na mensagem do usuário."
+        )
+        try:
+            final_state_retry = await graph.ainvoke(
+                {"messages": [HumanMessage(content=correction)]},
+                config=config,
+            )
+            messages = final_state_retry.get("messages") or messages
+            last = messages[-1] if messages else None
+            reply = (
+                _message_content_to_str(
+                    getattr(last, "content", "") if last else ""
+                )
+                or reply
+            )
+            pending_uuid = extract_pending_email_uuid_from_messages(messages)
+        except Exception as e:
+            log.error("draft_retry_failed", error=str(e))
+
     if pending_uuid:
         payload = await pend_email_get(pending_uuid)
         if payload is None:
@@ -251,6 +312,7 @@ async def _run_agent_turn(update: Update, msg, txt: str) -> None:
                 return
 
     if pending_uuid and payload is not None:
+        await revision_clear(chat_id)
         if submission_id is not None:
             payload["submission_id"] = submission_id
             await pend_email_save_existing(pending_uuid, payload)

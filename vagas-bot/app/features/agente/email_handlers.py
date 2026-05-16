@@ -8,6 +8,7 @@ from app.core.pending_email import (
     EMAIL_CONFIRM_PENDING_PREFIX,
     pend_email_delete,
     pend_email_get,
+    revision_set,
 )
 from app.features.agente.email_dispatch import dispatch_application_email
 from app.features.email_submission.models import SubmissionStatus
@@ -54,6 +55,9 @@ async def email_inline_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE)
     if action == "reject":
         await pend_email_delete(uid)
         await _set_submission_status(uid, SubmissionStatus.REJECTED)
+        chat_id_for_flag = update.effective_chat.id if update.effective_chat else None
+        if chat_id_for_flag is not None:
+            await revision_set(chat_id_for_flag)
         await query.answer("Rejeitado — me diga o motivo.")
         await query.edit_message_reply_markup(reply_markup=None)
         chat_id = update.effective_chat.id if update.effective_chat else None

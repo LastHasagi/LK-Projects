@@ -134,6 +134,14 @@ _SMART_KEYWORDS = (
     "muda a abordagem",
     "rewrite",
     "redige",
+    "estado: revisão de rascunho",
+    "rascunho",
+    "card",
+    "candidatura",
+    "manda os",
+    "envia os",
+    "envia o card",
+    "manda o card",
 )
 _SMART_LEN_THRESHOLD = 300
 
