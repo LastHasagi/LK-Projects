@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from arq.connections import ArqRedis, create_pool
 
-from app.browser.camoufox import open_context
+from app.browser.pool import get_context
 from app.browser.flows.parse_job import parse_job_page
 from app.browser.flows.search import VagaPreview, search_listings
 from app.core.db import get_session_maker
@@ -44,12 +44,12 @@ async def scrape_search(ctx: dict, filtro_id: int) -> int:
         return 0
 
     log.info("scrape_search_started", filtro_id=filtro_id, query=filtro.query)
+    context = await get_context("gupy")
     previews: list[VagaPreview] = []
-    async with open_context(headless=True) as context:
-        try:
-            previews = await search_listings(context, query=filtro.query)
-        except Exception as e:
-            log.error("scrape_search_failed", filtro_id=filtro_id, error=str(e))
+    try:
+        previews = await search_listings(context, query=filtro.query)
+    except Exception as e:
+        log.error("scrape_search_failed", filtro_id=filtro_id, error=str(e))
 
     novas = 0
     async with maker() as session:
@@ -57,8 +57,7 @@ async def scrape_search(ctx: dict, filtro_id: int) -> int:
             if await vaga_por_url(session, preview.url) is not None:
                 continue
             try:
-                async with open_context(headless=True) as ctx2:
-                    detalhe = await parse_job_page(ctx2, url=preview.url)
+                detalhe = await parse_job_page(context, url=preview.url)
             except Exception as e:
                 log.warning("parse_job_failed", url=preview.url, error=str(e))
                 detalhe = None
@@ -99,8 +98,8 @@ async def scrape_job(ctx: dict, url: str, chat_id: int) -> int:
             return existente.id
 
     try:
-        async with open_context(headless=True) as context:
-            detalhe = await parse_job_page(context, url=url)
+        context = await get_context("gupy")
+        detalhe = await parse_job_page(context, url=url)
     except Exception as e:
         log.error("scrape_job_failed", url=url, error=str(e))
         return 0

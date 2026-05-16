@@ -509,6 +509,7 @@ AGENT_TOOLS = [
     candidatar_a_vaga,
     traduzir_cv_para_idioma,
     salvar_fato_usuario,
+    buscar_fatos_relevantes,
     listar_filtros_busca,
     criar_filtro_busca,
     editar_filtro_busca,
