@@ -147,6 +147,8 @@ async def main() -> None:
                 except Exception:
                     pass
                 await application.stop()
+    from app.core.db import get_engine
+    await get_engine().dispose()
 
 
 if __name__ == "__main__":

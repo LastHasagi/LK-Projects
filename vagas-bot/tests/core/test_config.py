@@ -16,14 +16,14 @@ def test_settings_loads_required_fields(monkeypatch):
         TELEGRAM_BOT_TOKEN="abc",
         TELEGRAM_ADMIN_USER_ID="42",
         OPENAI_API_KEY="sk-x",
-        DATABASE_URL="postgresql+asyncpg://u:p@h/db",
+        DATABASE_URL="postgresql+psycopg://u:p@h/db",
         REDIS_URL="redis://r:6379/0",
         FERNET_KEY="key",
     )
     s = Settings()
     assert s.telegram_bot_token == "abc"
     assert s.telegram_admin_user_id == 42
-    assert s.database_url == "postgresql+asyncpg://u:p@h/db"
+    assert s.database_url == "postgresql+psycopg://u:p@h/db"
     assert s.log_level == "INFO"  # default
     assert s.env == "dev"  # default
     assert s.smtp_user is None

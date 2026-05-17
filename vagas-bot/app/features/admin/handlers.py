@@ -12,10 +12,12 @@ from app.features.admin.service import (
     coletar_metricas,
     is_pause_scrape,
     limpar_fila,
+    limpar_vagas_pendentes_do_filtro,
     listar_eventos_erro,
+    resumo_filtros,
     set_pause_scrape,
 )
-from app.features.filtros.service import listar_filtros
+from app.features.filtros.service import desativar_filtro, listar_filtros
 
 log = get_logger(__name__)
 
@@ -30,7 +32,32 @@ def _admin_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📝 Logs", callback_data="admin:logs"),
             InlineKeyboardButton("⚙ Controles", callback_data="admin:ctrl"),
         ],
+        [InlineKeyboardButton("🔎 Filtros", callback_data="admin:filtros")],
     ])
+
+
+def _filtros_menu(resumo: list[dict]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for f in resumo:
+        rows.append([
+            InlineKeyboardButton(
+                f"{f['nome']} — {f['pendentes']}/{f['total']}",
+                callback_data=f"admin:f:info:{f['id']}",
+            ),
+        ])
+        rows.append([
+            InlineKeyboardButton(
+                "🔍 Buscar", callback_data=f"admin:f:scrape:{f['id']}"
+            ),
+            InlineKeyboardButton(
+                "🧹 Esvaziar", callback_data=f"admin:f:wipe:{f['id']}"
+            ),
+            InlineKeyboardButton(
+                "🗑 Desativar", callback_data=f"admin:f:disable:{f['id']}"
+            ),
+        ])
+    rows.append([InlineKeyboardButton("⬅ Voltar", callback_data="admin:menu")])
+    return InlineKeyboardMarkup(rows)
 
 
 def _ctrl_menu(paused: bool) -> InlineKeyboardMarkup:
@@ -149,6 +176,78 @@ async def admin_callback(update: Update, _ctx: ContextTypes.DEFAULT_TYPE) -> Non
         removed = await limpar_fila()
         await query.answer(f"Removidas {removed} chaves arq.")
         return
+
+    if action == "filtros":
+        maker = get_session_maker()
+        async with maker() as session:
+            resumo = await resumo_filtros(session)
+        if not resumo:
+            await query.answer("Nenhum filtro ativo.", show_alert=True)
+            return
+        txt = (
+            "🔎 Filtros ativos (pendentes/total)\n"
+            "Pendentes = vagas indexadas sem candidatura."
+        )
+        await query.answer()
+        await query.edit_message_text(txt, reply_markup=_filtros_menu(resumo))
+        return
+
+    if action.startswith("f:"):
+        _, op, raw_id = action.split(":", 2)
+        try:
+            filtro_id = int(raw_id)
+        except ValueError:
+            await query.answer("ID inválido.", show_alert=True)
+            return
+
+        if op == "scrape":
+            pool: ArqRedis = await create_pool(get_redis_settings())
+            try:
+                await pool.enqueue_job("scrape_search", filtro_id)
+            finally:
+                await pool.close()
+            await query.answer(f"Busca disparada para filtro #{filtro_id}.")
+            return
+
+        if op == "wipe":
+            maker = get_session_maker()
+            async with maker() as session:
+                removidas = await limpar_vagas_pendentes_do_filtro(session, filtro_id)
+            await query.answer(
+                f"Filtro #{filtro_id}: {removidas} vaga(s) removida(s).",
+                show_alert=True,
+            )
+            maker = get_session_maker()
+            async with maker() as session:
+                resumo = await resumo_filtros(session)
+            await query.edit_message_text(
+                "🔎 Filtros ativos (pendentes/total)",
+                reply_markup=_filtros_menu(resumo),
+            )
+            return
+
+        if op == "disable":
+            maker = get_session_maker()
+            async with maker() as session:
+                await desativar_filtro(session, filtro_id)
+                resumo = await resumo_filtros(session)
+            await query.answer(
+                f"Filtro #{filtro_id} desativado.", show_alert=True
+            )
+            if not resumo:
+                await query.edit_message_text(
+                    "Nenhum filtro ativo.", reply_markup=_admin_menu()
+                )
+            else:
+                await query.edit_message_text(
+                    "🔎 Filtros ativos (pendentes/total)",
+                    reply_markup=_filtros_menu(resumo),
+                )
+            return
+
+        if op == "info":
+            await query.answer(f"Filtro #{filtro_id} — use Buscar/Esvaziar/Desativar.")
+            return
 
 
 admin_callback_handler = CallbackQueryHandler(admin_callback, pattern=r"^admin:")

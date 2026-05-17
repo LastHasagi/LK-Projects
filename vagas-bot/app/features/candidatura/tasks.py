@@ -4,7 +4,7 @@ from pathlib import Path
 from arq.connections import ArqRedis, create_pool
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.browser.pool import get_context, invalidate_context
+from app.browser.pool import session as browser_session
 from app.browser.flows.apply import (
     AppliedResult,
     PendingQuestion,
@@ -84,17 +84,16 @@ async def apply_job(ctx: dict, candidatura_id: int) -> str:
         return storage_state
 
     try:
-        context = await get_context("gupy_auth", storage_state_loader=_gupy_storage_loader)
-        result = await apply_to_vaga(
-            context,
-            url=url,
-            answer_lookup=lookup,
-            screenshot_dir=SCREENSHOT_DIR,
-            candidatura_id=candidatura_id,
-        )
+        async with browser_session("gupy_auth", storage_state_loader=_gupy_storage_loader) as context:
+            result = await apply_to_vaga(
+                context,
+                url=url,
+                answer_lookup=lookup,
+                screenshot_dir=SCREENSHOT_DIR,
+                candidatura_id=candidatura_id,
+            )
     except Exception as e:
         log.error("apply_failed", candidatura_id=candidatura_id, error=str(e))
-        await invalidate_context("gupy_auth")
         async with maker() as session:
             await marcar_falha(session, candidatura_id, erro=str(e))
         pool = await create_pool(get_redis_settings())

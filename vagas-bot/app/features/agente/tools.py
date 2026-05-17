@@ -1,13 +1,18 @@
+import csv
 import hashlib
 import json
 import re
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated
 
 from arq.connections import ArqRedis, create_pool
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedStore
 from langgraph.store.base import BaseStore
 from sqlalchemy import select
+from telegram import Bot
 
 from app.core.config import get_settings
 from app.core.db import get_session_maker
@@ -499,6 +504,162 @@ async def sugerir_filtros_busca(
     return json.dumps(payload, ensure_ascii=False)
 
 
+_ALLOWED_FILE_ROOTS = (Path("/app/data"),)
+_EXPORT_DIR = Path("/app/data/exports")
+
+
+def _is_safe_path(p: Path) -> bool:
+    try:
+        rp = p.resolve()
+    except OSError:
+        return False
+    return any(rp.is_relative_to(root) for root in _ALLOWED_FILE_ROOTS)
+
+
+def _chat_id_from_config(config: RunnableConfig | None) -> int | None:
+    if not config:
+        return None
+    cfg = config.get("configurable") or {}
+    thread = cfg.get("thread_id")
+    try:
+        return int(thread) if thread is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+@tool
+async def enviar_arquivo_telegram(
+    file_path: str,
+    config: RunnableConfig,
+    caption: str | None = None,
+) -> str:
+    """Envia um arquivo local pro chat do usuário no Telegram.
+
+    Use SEMPRE que precisar entregar um arquivo (CV em PDF, export de vagas,
+    screenshot etc). NUNCA diga ao usuário "anexei o arquivo" sem chamar essa
+    tool — antes dela, o agente não tem como entregar arquivos no chat.
+
+    `file_path`: caminho absoluto sob `/app/data/` (CVs, exports, screenshots).
+    Caminhos fora dessa árvore são rejeitados por segurança.
+    `caption`: legenda opcional curta (máx 1024 chars)."""
+    chat_id = _chat_id_from_config(config)
+    if chat_id is None:
+        return "Sem chat_id no contexto — não consigo enviar."
+    p = Path(file_path)
+    if not p.is_absolute():
+        p = Path("/app") / p
+    if not _is_safe_path(p):
+        return f"Caminho '{file_path}' fora de /app/data/. Rejeitado."
+    if not p.exists() or not p.is_file():
+        return f"Arquivo não encontrado: {p}"
+    settings = get_settings()
+    bot = Bot(token=settings.telegram_bot_token)
+    try:
+        async with bot:
+            with p.open("rb") as fh:
+                await bot.send_document(
+                    chat_id=chat_id,
+                    document=fh,
+                    filename=p.name,
+                    caption=(caption[:1024] if caption else None),
+                )
+    except Exception as e:
+        return f"Falha ao enviar: {e!s}"
+    return f"Enviado: {p.name}"
+
+
+def _format_vagas_md(query: str, vagas: list[Vaga]) -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    out = [f"# Vagas: {query}", f"_Exportado em {ts} — {len(vagas)} resultado(s)_", ""]
+    out.append("| # | Título | Empresa | Localidade | Modalidade | Link |")
+    out.append("|---|---|---|---|---|---|")
+    for i, v in enumerate(vagas, 1):
+        out.append(
+            f"| {i} | {v.titulo or '-'} | {v.empresa or '-'} | "
+            f"{v.localidade or '-'} | {v.modalidade or '-'} | {v.url} |"
+        )
+    return "\n".join(out) + "\n"
+
+
+def _write_vagas_csv(path: Path, vagas: list[Vaga]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["titulo", "empresa", "localidade", "modalidade", "url"])
+        for v in vagas:
+            w.writerow([
+                v.titulo or "",
+                v.empresa or "",
+                v.localidade or "",
+                v.modalidade or "",
+                v.url,
+            ])
+
+
+@tool
+async def exportar_vagas_para_arquivo(
+    query: str,
+    formato: str = "md",
+    limite: int = 30,
+    semantica: bool = True,
+) -> str:
+    """Exporta vagas indexadas pra um arquivo .md ou .csv (abre no Excel/Sheets).
+
+    Use quando o usuário pedir uma lista/planilha/export de vagas (ex.: "me
+    manda 30 vagas de SDR em arquivo"). Depois desta tool, chame
+    `enviar_arquivo_telegram` com o caminho retornado pra entregar no chat.
+
+    - `query`: termo de busca (ex.: 'SDR', 'engenheiro de dados senior').
+    - `formato`: 'md' (default, tabela markdown) ou 'csv' (abre no Excel).
+    - `limite`: máx vagas a incluir (default 30).
+    - `semantica`: True usa busca por similaridade do embedding; False usa
+      LIKE no título/empresa/descrição."""
+    fmt = formato.lower().strip()
+    if fmt not in ("md", "csv"):
+        return f"Formato '{formato}' não suportado. Use 'md' ou 'csv'."
+    if limite < 1 or limite > 200:
+        return "Limite deve estar entre 1 e 200."
+    q = query.strip()
+    if not q:
+        return "Query vazia."
+    maker = get_session_maker()
+    async with maker() as session:
+        if semantica:
+            embeddings = await embed_texts([q])
+            emb = embeddings[0]
+            distance = Vaga.descricao_embedding.cosine_distance(emb).label("dist")
+            stmt = (
+                select(Vaga, distance)
+                .where(Vaga.descricao_embedding.isnot(None))
+                .order_by(distance)
+                .limit(limite)
+            )
+            vagas = [v for v, _ in (await session.execute(stmt)).all()]
+        else:
+            pattern = f"%{q}%"
+            stmt = (
+                select(Vaga)
+                .where(
+                    Vaga.titulo.ilike(pattern)
+                    | Vaga.empresa.ilike(pattern)
+                    | Vaga.descricao.ilike(pattern)
+                )
+                .order_by(Vaga.criada_em.desc())
+                .limit(limite)
+            )
+            vagas = list((await session.execute(stmt)).scalars())
+    if not vagas:
+        return "Nenhuma vaga encontrada para essa query."
+    _EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", q)[:40].strip("_") or "vagas"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    path = _EXPORT_DIR / f"vagas_{slug}_{stamp}.{fmt}"
+    if fmt == "md":
+        path.write_text(_format_vagas_md(q, vagas), encoding="utf-8")
+    else:
+        _write_vagas_csv(path, vagas)
+    return f"{path} ({len(vagas)} vagas)"
+
+
 AGENT_TOOLS = [
     buscar_vagas_semantica,
     explicar_fit,
@@ -515,4 +676,6 @@ AGENT_TOOLS = [
     editar_filtro_busca,
     desativar_filtro_busca,
     sugerir_filtros_busca,
+    enviar_arquivo_telegram,
+    exportar_vagas_para_arquivo,
 ]

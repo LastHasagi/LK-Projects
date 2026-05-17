@@ -39,7 +39,9 @@ class AgentState(TypedDict):
 
 def _pg_dsn() -> str:
     raw = get_settings().database_url
-    return raw.replace("postgresql+asyncpg://", "postgresql://")
+    return raw.replace("postgresql+psycopg://", "postgresql://").replace(
+        "postgresql+asyncpg://", "postgresql://"
+    )
 
 
 def _format_for_summary(m: BaseMessage) -> str:

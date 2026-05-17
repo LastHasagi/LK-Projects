@@ -1,12 +1,14 @@
-"""Long-lived Camoufox browser + per-ATS context pool.
+"""Long-lived Camoufox browser + per-job BrowserContext.
 
-One AsyncCamoufox process per worker. Each ATS gets its own BrowserContext
-(isolated cookies/storage), created lazily on first acquisition and reused
-for the rest of the worker's lifetime. Pages are created per job inside the
-ATS context — concurrency comes from page parallelism, not browser cloning.
+One AsyncCamoufox process per worker, shared by all jobs. Each job opens
+its own BrowserContext via `session(ats)` (isolated cookies/storage) and
+closes it on exit. Contexts run in parallel inside the single browser —
+this avoids the page-level contention observed when multiple jobs share a
+single Context under Camoufox's humanize mode.
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Awaitable, Callable
 
 from camoufox.async_api import AsyncCamoufox
@@ -21,8 +23,7 @@ StorageStateLoader = Callable[[], Awaitable[dict | None]]
 _browser_cm: AsyncCamoufox | None = None
 _browser: Browser | None = None
 _browser_lock = asyncio.Lock()
-_contexts: dict[str, BrowserContext] = {}
-_context_locks: dict[str, asyncio.Lock] = {}
+_session_semaphore = asyncio.Semaphore(1)
 
 
 async def _ensure_browser() -> Browser:
@@ -37,54 +38,44 @@ async def _ensure_browser() -> Browser:
                 await _browser_cm.__aexit__(None, None, None)
             except Exception as e:
                 log.warning("camoufox_prev_exit_failed", error=str(e))
-        _contexts.clear()
         _browser_cm = AsyncCamoufox(headless=True, locale="pt-BR", humanize=True)
         _browser = await _browser_cm.__aenter__()
         log.info("camoufox_launched")
     return _browser
 
 
-async def get_context(
+@asynccontextmanager
+async def session(
     ats: str,
     *,
     storage_state_loader: StorageStateLoader | None = None,
-) -> BrowserContext:
-    cached = _contexts.get(ats)
-    if cached is not None:
-        return cached
-    lock = _context_locks.setdefault(ats, asyncio.Lock())
-    async with lock:
-        cached = _contexts.get(ats)
-        if cached is not None:
-            return cached
+):
+    """Yield a fresh BrowserContext for the duration of a job.
+
+    The context is closed on exit but the underlying browser keeps running.
+    Browser sessions are serialized via a semaphore — Camoufox's humanize
+    mode behaves badly with concurrent contexts in the same process.
+    """
+    async with _session_semaphore:
         browser = await _ensure_browser()
         storage_state = await storage_state_loader() if storage_state_loader else None
-        context = await browser.new_context(storage_state=storage_state)
-        _contexts[ats] = context
-        log.info(
-            "context_created",
+        context: BrowserContext = await browser.new_context(storage_state=storage_state)
+        log.debug(
+            "context_opened",
             ats=ats,
             has_storage_state=storage_state is not None,
         )
-        return context
-
-
-async def invalidate_context(ats: str) -> None:
-    """Drop the cached context for `ats`. Next get_context reloads storage."""
-    ctx = _contexts.pop(ats, None)
-    if ctx is None:
-        return
-    try:
-        await ctx.close()
-    except Exception as e:
-        log.warning("context_close_failed", ats=ats, error=str(e))
-    log.info("context_invalidated", ats=ats)
+        try:
+            yield context
+        finally:
+            try:
+                await context.close()
+            except Exception as e:
+                log.warning("context_close_failed", ats=ats, error=str(e))
 
 
 async def shutdown_browser() -> None:
     global _browser, _browser_cm
-    for ats in list(_contexts.keys()):
-        await invalidate_context(ats)
     if _browser_cm is not None:
         try:
             await _browser_cm.__aexit__(None, None, None)

@@ -25,7 +25,9 @@ async def startup(ctx: dict) -> None:
 
 async def shutdown(ctx: dict) -> None:
     from app.browser.pool import shutdown_browser
+    from app.core.db import get_engine
     await shutdown_browser()
+    await get_engine().dispose()
     log = ctx.get("log")
     if log:
         log.info("worker_stopped")

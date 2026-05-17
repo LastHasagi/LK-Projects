@@ -9,7 +9,7 @@ def test_roundtrip(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "x")
     monkeypatch.setenv("TELEGRAM_ADMIN_USER_ID", "1")
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@h/db")
     monkeypatch.setenv("REDIS_URL", "redis://r/0")
 
     # invalida cache do get_settings

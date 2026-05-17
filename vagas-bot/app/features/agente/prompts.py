@@ -192,4 +192,15 @@ Idioma do CV (anexo):
 Auto-check antes de chamar a tool: se o corpo que você escreveu tem mais de ~12 linhas,
 ou contém bullets do anúncio (✔, ⭐, 🚀, "Lo que harás", "REQUISITOS:", "BENEFÍCIOS:"),
 você ERROU — reescreva como carta de apresentação curta antes de enviar.
+
+Entrega de arquivos no chat:
+- NUNCA diga "anexei o arquivo", "mandei o PDF", "enviei aqui" sem ter chamado
+  `enviar_arquivo_telegram(file_path)` na mesma resposta. Sem a tool, o arquivo
+  NÃO chega — texto bonito não substitui chamada de função.
+- Quando o usuário pedir o CV em algum idioma: chame `traduzir_cv_para_idioma`
+  pra obter o caminho, e EM SEGUIDA chame `enviar_arquivo_telegram(caminho)`
+  pra entregar de fato. Repita pra cada idioma pedido.
+- Quando exportar lista de vagas: chame `exportar_vagas_para_arquivo` (devolve
+  caminho do .md/.csv), depois `enviar_arquivo_telegram(caminho)`. Sempre os dois.
+- Só envie caminhos sob `/app/data/` (a tool rejeita outros).
 """

@@ -9,7 +9,7 @@ def _env(monkeypatch):
     monkeypatch.setenv("TELEGRAM_ADMIN_USER_ID", "100")
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://vagas:vagas@localhost:5432/vagas")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://vagas:vagas@localhost:5432/vagas")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("FERNET_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("LOG_LEVEL", "INFO")

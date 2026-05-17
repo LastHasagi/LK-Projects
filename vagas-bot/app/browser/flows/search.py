@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from playwright.async_api import BrowserContext
@@ -7,6 +8,8 @@ from app.browser.selectors import SELECTORS
 from app.core.logging import get_logger
 
 log = get_logger(__name__)
+
+_DEBUG_DIR = Path("/app/data/screenshots")
 
 
 @dataclass
@@ -25,7 +28,29 @@ async def search_listings(
     page = await context.new_page()
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        await page.wait_for_selector(SELECTORS.listing_item, timeout=15_000)
+        try:
+            await page.wait_for_selector(SELECTORS.listing_item, timeout=15_000)
+        except Exception as e:
+            try:
+                _DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+                slug = "".join(c if c.isalnum() else "_" for c in query)[:40]
+                shot = _DEBUG_DIR / f"search_timeout_{slug}.png"
+                await page.screenshot(path=str(shot), full_page=True)
+                landed_url = page.url
+                landed_title = await page.title()
+                body_html = await page.content()
+                log.error(
+                    "search_selector_timeout",
+                    query=query,
+                    landed_url=landed_url,
+                    landed_title=landed_title,
+                    body_len=len(body_html),
+                    body_snippet=body_html[:500],
+                    screenshot=str(shot),
+                )
+            except Exception as diag_err:
+                log.warning("search_diag_failed", error=str(diag_err))
+            raise e
         items = await page.query_selector_all(SELECTORS.listing_item)
         log.info("listings_found", count=len(items), query=query)
 

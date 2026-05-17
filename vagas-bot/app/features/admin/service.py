@@ -164,3 +164,59 @@ async def limpar_fila() -> int:
         return int(await redis.delete(*keys))
     finally:
         await redis.aclose()
+
+
+async def resumo_filtros(session: AsyncSession) -> list[dict]:
+    from app.features.candidatura.models import Candidatura
+
+    stmt = (
+        select(
+            Filtro.id,
+            Filtro.nome,
+            Filtro.ativo,
+            func.count(Vaga.id).label("vagas_total"),
+            func.count(Candidatura.id).label("vagas_candidatadas"),
+        )
+        .select_from(Filtro)
+        .outerjoin(Vaga, Vaga.filtro_id == Filtro.id)
+        .outerjoin(Candidatura, Candidatura.vaga_id == Vaga.id)
+        .where(Filtro.ativo.is_(True))
+        .group_by(Filtro.id, Filtro.nome, Filtro.ativo)
+        .order_by(Filtro.id)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        {
+            "id": r.id,
+            "nome": r.nome,
+            "ativo": r.ativo,
+            "pendentes": r.vagas_total - r.vagas_candidatadas,
+            "total": r.vagas_total,
+        }
+        for r in rows
+    ]
+
+
+async def limpar_vagas_pendentes_do_filtro(
+    session: AsyncSession, filtro_id: int
+) -> int:
+    from sqlalchemy import delete
+    from app.features.candidatura.models import Candidatura
+    from app.features.matching.models import MatchResult
+
+    candidatada_subq = select(Candidatura.vaga_id).where(
+        Candidatura.vaga_id == Vaga.id
+    )
+    pendentes_stmt = select(Vaga.id).where(
+        Vaga.filtro_id == filtro_id,
+        ~candidatada_subq.exists(),
+    )
+    pendentes_ids = list((await session.execute(pendentes_stmt)).scalars())
+    if not pendentes_ids:
+        return 0
+    await session.execute(
+        delete(MatchResult).where(MatchResult.vaga_id.in_(pendentes_ids))
+    )
+    await session.execute(delete(Vaga).where(Vaga.id.in_(pendentes_ids)))
+    await session.commit()
+    return len(pendentes_ids)
