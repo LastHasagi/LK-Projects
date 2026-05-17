@@ -19,6 +19,7 @@ class VagaCandidata:
     descricao: str | None
     gupy_external_id: str | None = None
     filtro_id: int | None = None
+    ats: str = "gupy"
 
 
 async def vaga_por_url(session: AsyncSession, url: str) -> Vaga | None:
@@ -73,6 +74,7 @@ async def persistir_vaga(
         descricao=candidata.descricao,
         descricao_embedding=embedding,
         filtro_id=candidata.filtro_id,
+        ats=candidata.ats,
         status="novo",
     )
     session.add(vaga)

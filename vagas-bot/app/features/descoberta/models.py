@@ -26,6 +26,7 @@ class Vaga(Base):
         ForeignKey("filtro.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[str] = mapped_column(String(20), default="novo")
+    ats: Mapped[str] = mapped_column(String(20), nullable=False, default="gupy")
     criada_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -335,6 +335,7 @@ async def buscar_fatos_relevantes(
 
 _MODALIDADES_VALIDAS = {"remoto", "presencial", "hibrido", "híbrido"}
 _NIVEIS_VALIDOS = {"junior", "júnior", "pleno", "senior", "sênior", "estagio", "estágio"}
+_ATS_VALIDOS = {"gupy", "infojobs"}
 
 
 def _filtro_to_dict(f) -> dict:
@@ -347,6 +348,7 @@ def _filtro_to_dict(f) -> dict:
         "nivel": f.nivel,
         "intervalo_min": f.intervalo_min,
         "ativo": f.ativo,
+        "ats": f.ats,
     }
 
 
@@ -375,11 +377,12 @@ async def criar_filtro_busca(
     modalidade: str | None = None,
     nivel: str | None = None,
     intervalo_min: int = 120,
+    ats: str = "gupy",
 ) -> str:
     """Cria um novo filtro de busca de vagas.
 
     REGRA: antes de chamar, MOSTRE no chat exatamente o que vai criar (nome,
-    query, localidade, modalidade, nivel, intervalo) e PEÇA confirmação. Só
+    query, localidade, modalidade, nivel, intervalo, ats) e PEÇA confirmação. Só
     chame após "sim/ok".
 
     Campos:
@@ -388,7 +391,8 @@ async def criar_filtro_busca(
     - `localidade`: cidade/UF/país, opcional.
     - `modalidade`: 'remoto', 'presencial' ou 'hibrido', opcional.
     - `nivel`: 'junior', 'pleno', 'senior', 'estagio', opcional.
-    - `intervalo_min`: minutos entre buscas automáticas (default 120)."""
+    - `intervalo_min`: minutos entre buscas automáticas (default 120).
+    - `ats`: 'gupy' (default) ou 'infojobs' — qual portal scrapear."""
     nome = nome.strip()
     query = query.strip()
     if not nome or not query:
@@ -403,6 +407,8 @@ async def criar_filtro_busca(
         return f"nivel inválido: {nivel}. Use junior, pleno, senior ou estagio."
     if intervalo_min < 15:
         return "intervalo_min mínimo é 15 (evitar rate limit)."
+    if ats.lower() not in _ATS_VALIDOS:
+        return f"ats inválido: {ats}. Use {', '.join(sorted(_ATS_VALIDOS))}."
     maker = get_session_maker()
     async with maker() as session:
         f = await criar_filtro(
@@ -413,6 +419,7 @@ async def criar_filtro_busca(
             modalidade=modalidade,
             nivel=nivel,
             intervalo_min=intervalo_min,
+            ats=ats.lower(),
         )
     return f"Filtro #{f.id} criado: {json.dumps(_filtro_to_dict(f), ensure_ascii=False)}"
 

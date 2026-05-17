@@ -15,6 +15,7 @@ async def criar_filtro(
     modalidade: str | None = None,
     nivel: str | None = None,
     intervalo_min: int = 120,
+    ats: str = "gupy",
 ) -> Filtro:
     f = Filtro(
         nome=nome,
@@ -24,6 +25,7 @@ async def criar_filtro(
         nivel=nivel,
         intervalo_min=intervalo_min,
         ativo=True,
+        ats=ats,
     )
     session.add(f)
     await session.commit()
@@ -58,6 +60,7 @@ async def atualizar_filtro(
     nivel: str | None = None,
     intervalo_min: int | None = None,
     ativo: bool | None = None,
+    ats: str | None = None,
 ) -> Filtro | None:
     valores: dict = {}
     if nome is not None:
@@ -74,6 +77,8 @@ async def atualizar_filtro(
         valores["intervalo_min"] = intervalo_min
     if ativo is not None:
         valores["ativo"] = ativo
+    if ats is not None:
+        valores["ats"] = ats
     if valores:
         await session.execute(
             update(Filtro).where(Filtro.id == filtro_id).values(**valores)

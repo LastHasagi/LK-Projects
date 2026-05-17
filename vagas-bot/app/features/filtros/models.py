@@ -17,6 +17,7 @@ class Filtro(Base):
     nivel: Mapped[str | None] = mapped_column(String(30), nullable=True)
     intervalo_min: Mapped[int] = mapped_column(Integer, default=120)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    ats: Mapped[str] = mapped_column(String(20), nullable=False, default="gupy")
     ultima_busca_em: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -3,8 +3,15 @@ from datetime import datetime, timezone
 from arq.connections import ArqRedis, create_pool
 
 from app.browser.pool import session as browser_session
-from app.browser.flows.parse_job import parse_job_page
-from app.browser.flows.search import VagaPreview, search_listings
+from app.browser.flows.search import (
+    VagaPreview,
+    search_listings as gupy_search,
+)
+from app.browser.flows.parse_job import parse_job_page as gupy_parse
+from app.browser.flows.infojobs import (
+    parse_job_page as infojobs_parse,
+    search_listings as infojobs_search,
+)
 from app.core.db import get_session_maker
 from app.core.logging import get_logger
 from app.core.redis import get_redis_settings
@@ -43,21 +50,33 @@ async def scrape_search(ctx: dict, filtro_id: int) -> int:
         log.warning("scrape_search_skipped", filtro_id=filtro_id)
         return 0
 
-    log.info("scrape_search_started", filtro_id=filtro_id, query=filtro.query)
+    ats = filtro.ats or "gupy"
+    if ats == "infojobs":
+        search_fn, parse_fn = infojobs_search, infojobs_parse
+    else:
+        search_fn, parse_fn = gupy_search, gupy_parse
+
+    log.info(
+        "scrape_search_started",
+        filtro_id=filtro_id, query=filtro.query, ats=ats,
+    )
     previews: list[VagaPreview] = []
     novas = 0
-    async with browser_session("gupy") as context:
+    async with browser_session(ats) as context:
         try:
-            previews = await search_listings(context, query=filtro.query)
+            previews = await search_fn(context, query=filtro.query)
         except Exception as e:
-            log.error("scrape_search_failed", filtro_id=filtro_id, error=str(e))
+            log.error(
+                "scrape_search_failed",
+                filtro_id=filtro_id, ats=ats, error=str(e),
+            )
 
         async with maker() as session:
             for preview in previews:
                 if await vaga_por_url(session, preview.url) is not None:
                     continue
                 try:
-                    detalhe = await parse_job_page(context, url=preview.url)
+                    detalhe = await parse_fn(context, url=preview.url)
                 except Exception as e:
                     log.warning("parse_job_failed", url=preview.url, error=str(e))
                     detalhe = None
@@ -70,6 +89,7 @@ async def scrape_search(ctx: dict, filtro_id: int) -> int:
                     descricao=detalhe.descricao if detalhe else None,
                     gupy_external_id=detalhe.gupy_external_id if detalhe else None,
                     filtro_id=filtro.id,
+                    ats=ats,
                 )
                 vaga, criada = await persistir_vaga(session, candidata)
                 if criada:
