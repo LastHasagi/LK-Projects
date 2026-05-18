@@ -21,6 +21,29 @@ class VagaPreview:
     modalidade: str | None
 
 
+_COOKIE_BUTTONS = [
+    "button:has-text('Aceitar')",
+    "button:has-text('Concordo')",
+    "button:has-text('OK')",
+    "button[mode='primary']",
+    "[id*='cookie'] button",
+    "[class*='cookie'] button",
+]
+
+
+async def _dismiss_cookie_banner(page) -> None:
+    for sel in _COOKIE_BUTTONS:
+        try:
+            btn = await page.query_selector(sel)
+            if btn is None or not await btn.is_visible():
+                continue
+            await btn.click(timeout=1500)
+            await page.wait_for_timeout(500)
+            return
+        except Exception:
+            continue
+
+
 async def search_listings(
     context: BrowserContext, *, query: str, max_items: int = 30
 ) -> list[VagaPreview]:
@@ -28,6 +51,7 @@ async def search_listings(
     page = await context.new_page()
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+        await _dismiss_cookie_banner(page)
         try:
             await page.wait_for_selector(SELECTORS.listing_item, timeout=15_000)
         except Exception as e:

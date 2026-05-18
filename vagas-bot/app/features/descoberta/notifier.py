@@ -33,7 +33,9 @@ def _format_card(v: Vaga, m: MatchResult | None) -> str:
             linhas.append("\n📋 Do seu CV:")
             for c in m.citacoes[:3]:
                 linhas.append(f"• _{c}_")
-    linhas.append(f"\n[Abrir no Gupy]({v.url})")
+    labels = {"gupy": "Abrir no Gupy", "infojobs": "Abrir no Infojobs"}
+    label = labels.get(v.ats, "Abrir vaga")
+    linhas.append(f"\n[{label}]({v.url})")
     return "\n".join(linhas)
 
 
